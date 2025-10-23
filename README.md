@@ -1,251 +1,160 @@
-# Floating VSCode Opener
+# Nautilus VSCode Opener - Botón Flotante Minimalista
 
-Una aplicación con interfaz gráfica que muestra un botón flotante en tu escritorio de Ubuntu. El botón detecta automáticamente la carpeta que estás viendo en Nautilus y te permite abrirla en Visual Studio Code con un solo clic.
+Un botón flotante ultra-compacto y elegante que te permite abrir carpetas de Nautilus directamente en VSCode con un solo click.
 
-## Características
+## ✨ Características Principales
 
-- Botón flotante circular que aparece sobre todas las ventanas
-- Detecta automáticamente la carpeta activa en Nautilus
-- Interfaz gráfica de configuración completa
-- Diseño moderno con efectos visuales (hover, sombras, gradientes)
-- Arrastrable - mueve el botón a donde quieras
-- Menú contextual con opciones
-- Inicio automático al iniciar sesión
-- Totalmente personalizable (color, editor, etiquetas)
-- Compatible con VSCode, VSCode Insiders y otros editores
+- **Ultra Compacto**: Diseño minimalista de solo **36x36 píxeles**
+- **Círculo Oscuro Elegante**: Fondo oscuro (#2C2C2C) sin colores llamativos
+- **Icono de VSCode**: Muestra el icono real de VSCode del sistema
+- **Ocultación Inteligente**: Se desvanece suavemente cuando cambias a otra aplicación
+- **Aparición Suave**: Aparece con animación fade cuando vuelves a Nautilus
+- **Inicio Automático**: Opción configurable para iniciar con el sistema
+- **Totalmente Configurable**: Color del botón, comando del editor, y más
+- **Detección Automática**: Detecta la carpeta activa en Nautilus
+- **Arrastrable**: Mueve el botón a cualquier posición de la pantalla
 
-## Vista Previa
+## 🎨 Diseño
 
-El botón aparece como un círculo flotante azul en tu pantalla que puedes mover libremente. Cuando haces clic derecho, se abre un menú con opciones de configuración.
+- **Tamaño**: 36x36 píxeles (muy discreto)
+- **Color por defecto**: Círculo oscuro (#2C2C2C)
+- **Icono**: 24x24 píxeles del logo de VSCode
+- **Sombra sutil**: Para destacar sobre cualquier fondo
+- **Sin etiquetas**: Solo el icono para máxima limpieza visual
 
-## Requisitos
-
-- Ubuntu/Linux con entorno gráfico GNOME
-- Python 3.6+
-- Visual Studio Code (o cualquier otro editor)
-- PyGObject (GTK+ 3)
-- xdotool (para detectar ventanas activas)
-
-## Instalación
-
-### Instalación Rápida (Recomendada)
-
-Ejecuta el script de instalación que configurará todo automáticamente:
+## 🚀 Instalación Rápida
 
 ```bash
-cd "/home/wdk/Documentos/WEBMASTERK/Mis plugins/Nautilus"
+# Ejecutar el script de instalación
+chmod +x install.sh
 ./install.sh
 ```
 
-El script:
-1. Instala todas las dependencias necesarias (python3-gi, xdotool, etc.)
-2. Configura la aplicación para inicio automático
-3. Inicia la aplicación inmediatamente
+Esto creará un acceso directo en tu menú de aplicaciones.
 
-### Instalación Manual
+## 📖 Uso
 
-Si prefieres instalar paso a paso:
+### Método 1: Desde el menú de aplicaciones
+1. Busca "Nautilus VSCode Opener" en tu menú de aplicaciones
+2. Haz click para iniciar el botón flotante
 
-1. Instala las dependencias del sistema:
-   ```bash
-   sudo apt-get update
-   sudo apt-get install python3-gi python3-gi-cairo gir1.2-gtk-3.0 xdotool
-   pip3 install --user PyGObject
-   ```
-
-2. Da permisos de ejecución:
-   ```bash
-   chmod +x floating_button.py
-   ```
-
-3. Ejecuta la aplicación:
-   ```bash
-   python3 floating_button.py
-   ```
-
-### Ejecutar sin Instalar
-
-Para probar la aplicación sin instalarla:
-
+### Método 2: Desde terminal
 ```bash
-./run.sh
+python3 floating_button.py
 ```
 
-## Uso
+### Interacción con el botón
 
-### Uso Básico
+- **Click izquierdo**: Abre la carpeta actual en VSCode
+- **Click derecho**: Muestra menú de configuración
+- **Arrastrar**: Mueve el botón a otra posición (mantén presionado y arrastra)
 
-1. La aplicación muestra un botón flotante circular en tu pantalla
-2. Abre Nautilus y navega a cualquier carpeta
-3. El botón detecta automáticamente la carpeta activa
-4. Click izquierdo en el botón: Abre la carpeta en VSCode
-5. Arrastra el botón para moverlo a cualquier posición
+## ⚙️ Configuración
 
-### Menú Contextual
+Accede a la configuración haciendo click derecho sobre el botón:
 
-Click derecho en el botón para acceder a:
-- Configuración: Personaliza el comportamiento y apariencia
-- Salir: Cierra la aplicación
+1. **Comando del editor**: Cambia el comando para abrir VSCode (por defecto: `code`)
+2. **Color del botón**: Personaliza el color del círculo (por defecto: #2C2C2C - gris oscuro)
+3. **Mostrar etiqueta**: Activa/desactiva una pequeña etiqueta (desactivada por defecto)
+4. **Iniciar con el sistema**: El botón aparecerá automáticamente al iniciar sesión
 
-### Configuración
+### Configuración del Inicio Automático
 
-La ventana de configuración te permite ajustar:
+Para habilitar el inicio automático:
+1. Click derecho en el botón → Configuración
+2. Activa el interruptor "Iniciar con el sistema"
+3. Guarda los cambios
 
-1. **Comando del editor**: Cambia entre VSCode, VSCode Insiders, u otro editor
-   - `code` - VSCode estándar
-   - `code-insiders` - VSCode Insiders
-   - `subl` - Sublime Text
-   - `atom` - Atom
-   - Cualquier comando personalizado
+Esto creará un archivo `.desktop` en `~/.config/autostart/`
 
-2. **Color del botón**: Selector visual de color para personalizar la apariencia
+## 🎯 Comportamiento Visual
 
-3. **Mostrar etiqueta**: Activa/desactiva el texto "VSCode" en el botón
+- **Opacidad 100%**: Cuando Nautilus está activo/en foco
+- **Opacidad 0%**: Cuando otra aplicación está activa
+- **Transición suave**: Animación de fade de 20ms entre estados
+- **Hover effect**: El botón se ilumina ligeramente al pasar el mouse
+- **Active effect**: Se oscurece al hacer click
 
-Todos los cambios se guardan automáticamente en `~/.config/nautilus-vscode-opener/config.json`
+## 📁 Archivos de Configuración
 
-## Desinstalación
-
-Ejecuta el script de desinstalación:
-
-```bash
-./uninstall.sh
-```
-
-Esto:
-- Detiene la aplicación
-- Elimina el acceso directo del menú de aplicaciones
-- Deshabilita el inicio automático
-- Opcionalmente elimina la configuración guardada
-
-## Archivos del Proyecto
-
-- **[floating_button.py](floating_button.py)** - Aplicación principal con GUI
-- **[install.sh](install.sh)** - Script de instalación automática
-- **[uninstall.sh](uninstall.sh)** - Script de desinstalación
-- **[run.sh](run.sh)** - Script rápido para ejecutar sin instalar
-- **[requirements.txt](requirements.txt)** - Dependencias de Python
-- **[README.md](README.md)** - Este archivo
-
-## Archivos de Configuración
-
-La aplicación guarda su configuración en:
+El programa guarda su configuración en:
 ```
 ~/.config/nautilus-vscode-opener/config.json
 ```
 
-Estructura del archivo de configuración:
-```json
-{
-  "position_x": 100,
-  "position_y": 100,
-  "editor_command": "code",
-  "button_color": "#007ACC",
-  "show_label": true
-}
+Archivo de autostart (si está habilitado):
+```
+~/.config/autostart/nautilus-vscode-opener.desktop
 ```
 
-Puedes editar este archivo manualmente o usar la GUI de configuración.
+## 🔧 Requisitos
 
-## Solución de Problemas
+- Python 3
+- GTK+ 3
+- xdotool (para detección de ventanas)
+- VSCode o compatible (code, code-insiders, codium, vscodium)
 
-### El botón flotante no aparece
+Instalar dependencias en Ubuntu/Debian:
+```bash
+sudo apt install python3-gi gir1.2-gtk-3.0 xdotool
+```
 
-1. Verifica que la aplicación esté ejecutándose:
-   ```bash
-   ps aux | grep floating_button.py
-   ```
+## 🐛 Solución de Problemas
 
-2. Verifica que las dependencias estén instaladas:
-   ```bash
-   python3 -c "import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk; print('OK')"
-   ```
+### El botón no aparece
+- Verifica que Nautilus esté ejecutándose
+- Comprueba que xdotool esté instalado: `which xdotool`
+- El botón se oculta automáticamente cuando Nautilus no está en foco
 
-3. Ejecuta la aplicación manualmente para ver errores:
-   ```bash
-   python3 floating_button.py
-   ```
-
-4. Verifica que xdotool esté instalado:
-   ```bash
-   which xdotool
-   ```
-
-### El botón no detecta la carpeta de Nautilus
-
-1. Verifica que Nautilus esté abierto y sea la ventana activa
-
-2. El título de la ventana de Nautilus debe mostrar la ruta de la carpeta
-
-3. Prueba ejecutando manualmente:
-   ```bash
-   xdotool getactivewindow getwindowname
-   ```
-   Debe mostrar el título de la ventana activa
-
-4. En la configuración regional en español, Nautilus puede llamarse "Archivos" en lugar de "Files"
+### No detecta la carpeta correctamente
+- El programa usa varios métodos para detectar la carpeta
+- Si falla, usará la carpeta actual del sistema
+- Puedes ver los logs ejecutando desde terminal
 
 ### VSCode no se abre
+- Verifica que VSCode esté instalado: `which code`
+- Puedes configurar una ruta personalizada en Configuración
+- El programa intentará varios comandos comunes automáticamente
 
-1. Verifica que VSCode esté instalado y el comando `code` esté disponible:
-   ```bash
-   which code
-   ```
+### Quiero cambiar el color del botón
+- Click derecho → Configuración
+- Selecciona el color que prefieras
+- Guarda y reinicia la aplicación
 
-2. Si usas el .deb de VSCode, asegúrate de que `/usr/bin/code` esté en tu PATH
+## 💡 Tips
 
-3. Si instalaste VSCode de forma manual, crea un enlace simbólico:
-   ```bash
-   sudo ln -s /ruta/a/vscode/bin/code /usr/local/bin/code
-   ```
+1. **Posición óptima**: Coloca el botón en una esquina de tu pantalla donde no moleste
+2. **Color personalizado**: Si trabajas con temas claros, prueba un color más oscuro
+3. **Inicio automático**: Actívalo si usas Nautilus frecuentemente
+4. **Múltiples editores**: Puedes cambiar el comando para usar Sublime, Atom, etc.
 
-4. Cambia el comando del editor en la configuración (click derecho → Configuración)
+## 🆕 Changelog
 
-### La aplicación no inicia automáticamente
+### Versión 2.0 (Actual)
+- ✨ Reducido a 36x36 píxeles (ultra compacto)
+- 🎨 Nuevo diseño: círculo oscuro sin fondo de color
+- 🌓 Color por defecto cambiado a gris oscuro (#2C2C2C)
+- 🔍 Icono reducido a 24x24 píxeles
+- 🎯 Eliminado gradiente, diseño más limpio
+- ⚡ Mejoras de rendimiento en animaciones
 
-1. Verifica que el archivo autostart exista:
-   ```bash
-   ls -la ~/.config/autostart/vscode-opener.desktop
-   ```
+### Versión 1.0
+- Botón flotante básico
+- Detección de carpeta activa
+- Configuración personalizable
+- Inicio automático opcional
 
-2. Verifica el contenido del archivo:
-   ```bash
-   cat ~/.config/autostart/vscode-opener.desktop
-   ```
+## 📝 Licencia
 
-3. Re-ejecuta el instalador:
-   ```bash
-   ./install.sh
-   ```
+Este proyecto es de código abierto. Siéntete libre de modificarlo y compartirlo.
 
-## Cómo Funciona
+## 🤝 Contribuciones
 
-1. **Detección de ventana activa**: Usa `xdotool` para obtener el título de la ventana activa
-2. **Extracción de ruta**: Analiza el título de Nautilus para extraer la ruta de la carpeta
-3. **Botón flotante**: Ventana GTK siempre visible sobre otras ventanas
-4. **Persistencia**: Guarda posición y configuración en JSON
-5. **Inicio automático**: Archivo .desktop en autostart
+Las contribuciones son bienvenidas! Si encuentras algún bug o tienes alguna sugerencia:
+1. Reporta el problema
+2. Propón una mejora
+3. Envía un pull request
 
-## Tecnologías Utilizadas
+---
 
-- **Python 3** - Lenguaje de programación
-- **PyGObject (GTK+ 3)** - Interfaz gráfica
-- **xdotool** - Detección de ventanas activas
-- **JSON** - Almacenamiento de configuración
-- **Bash** - Scripts de instalación
-
-## Licencia
-
-Este proyecto es de código abierto y está disponible bajo la licencia MIT.
-
-## Contribuciones
-
-Las contribuciones son bienvenidas. Siéntete libre de:
-- Reportar bugs
-- Sugerir nuevas características
-- Enviar pull requests
-- Mejorar la documentación
-
-## Autor
-
-Desarrollado para facilitar el flujo de trabajo entre el explorador de archivos y el editor de código.
+**Nota**: Este es un proyecto independiente y no está afiliado con Microsoft o el proyecto VSCode.

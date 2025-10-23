@@ -9,6 +9,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
+import cairo
 import subprocess
 import os
 import re
@@ -25,6 +26,9 @@ class FloatingButtonApp:
         self.dragging = False
         self.drag_offset_x = 0
         self.drag_offset_y = 0
+        self.window_opacity = 1.0
+        self.is_nautilus_focused = False
+        self.fade_timer = None
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -36,8 +40,8 @@ class FloatingButtonApp:
         self.window.set_skip_pager_hint(True)
         self.window.set_accept_focus(False)
 
-        # Set window size - botón más grande y bonito
-        self.button_size = 70
+        # Set window size - botón muy compacto
+        self.button_size = 36
         self.window.set_default_size(self.button_size, self.button_size)
         self.window.set_resizable(False)
 
@@ -61,11 +65,17 @@ class FloatingButtonApp:
 
         self.window.set_app_paintable(True)
 
+        # Connect draw signal for transparency
+        self.window.connect('draw', self.on_draw)
+
         # Create button
         self.create_button()
 
         # Apply CSS
         self.apply_styles()
+
+        # Apply circular shape after window is realized
+        self.window.connect('realize', self.apply_circular_shape)
 
         # Enable dragging
         self.window.connect('button-press-event', self.on_button_press)
@@ -75,8 +85,9 @@ class FloatingButtonApp:
                               Gdk.EventMask.BUTTON_RELEASE_MASK |
                               Gdk.EventMask.POINTER_MOTION_MASK)
 
-        # Start monitoring Nautilus windows
+        # Start monitoring Nautilus windows and focus
         GLib.timeout_add(500, self.update_current_directory)
+        GLib.timeout_add(200, self.check_nautilus_focus)
 
         self.window.connect('destroy', Gtk.main_quit)
 
@@ -96,14 +107,56 @@ class FloatingButtonApp:
         else:
             print("Nautilus no detectado en inicio - esperando...")
 
+    def on_draw(self, widget, cr):
+        """Draw transparent background"""
+        cr.set_source_rgba(0, 0, 0, 0)  # Completely transparent
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+        return False
+
+    def on_draw_overlay(self, widget, cr):
+        """Draw transparent overlay background"""
+        cr.set_source_rgba(0, 0, 0, 0)  # Completely transparent
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+        return False
+
+    def apply_circular_shape(self, widget):
+        """Apply circular shape to the window to remove square background"""
+        # Create a circular region
+        width = self.button_size
+        height = self.button_size
+        radius = self.button_size // 2
+
+        # Create a cairo surface to draw the shape
+        surface = cairo.ImageSurface(cairo.FORMAT_A1, width, height)
+        cr = cairo.Context(surface)
+
+        # Draw a filled circle
+        cr.set_source_rgba(1, 1, 1, 1)
+        cr.arc(radius, radius, radius, 0, 2 * 3.14159)
+        cr.fill()
+
+        # Create region from the surface
+        region = Gdk.cairo_region_create_from_surface(surface)
+
+        # Apply the shape to the window
+        if self.window.get_window():
+            self.window.get_window().shape_combine_region(region, 0, 0)
+            # Also apply to input shape so clicks outside circle don't register
+            self.window.get_window().input_shape_combine_region(region, 0, 0)
+
     def load_config(self):
         """Load configuration from file"""
         default_config = {
             'position_x': 100,
             'position_y': 100,
             'editor_command': 'code',
-            'button_color': '#007ACC',
-            'show_label': True
+            'button_color': '#2C2C2C',
+            'show_label': False,
+            'autostart': False
         }
 
         try:
@@ -137,6 +190,8 @@ class FloatingButtonApp:
         """Create the main button"""
         # Main container
         overlay = Gtk.Overlay()
+        overlay.set_app_paintable(True)
+        overlay.connect('draw', self.on_draw_overlay)
         self.window.add(overlay)
 
         # Button
@@ -144,21 +199,58 @@ class FloatingButtonApp:
         self.button.set_size_request(self.button_size, self.button_size)
         self.button.set_relief(Gtk.ReliefStyle.NONE)
 
-        # Button content - diseño más bonito
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        # Button content - diseño compacto
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         box.set_halign(Gtk.Align.CENTER)
         box.set_valign(Gtk.Align.CENTER)
 
-        # Icon más grande y llamativo
-        icon_label = Gtk.Label()
-        icon_label.set_markup('<span font="28" weight="bold">📁</span>')
-        box.pack_start(icon_label, False, False, 0)
+        # Try to load VSCode icon, fallback to SVG or emoji
+        icon_loaded = False
+        try:
+            # Try to load VSCode icon from system
+            icon_theme = Gtk.IconTheme.get_default()
+            vscode_icon_names = [
+                'com.visualstudio.code',
+                'vscode',
+                'visual-studio-code',
+                'code'
+            ]
 
-        # Label con mejor estilo
-        if self.config.get('show_label', True):
-            label = Gtk.Label()
-            label.set_markup('<span font="9" weight="bold">VS Code</span>')
-            box.pack_start(label, False, False, 0)
+            for icon_name in vscode_icon_names:
+                if icon_theme.has_icon(icon_name):
+                    icon = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.LARGE_TOOLBAR)
+                    icon.set_pixel_size(24)
+                    box.pack_start(icon, True, True, 0)
+                    icon_loaded = True
+                    break
+        except Exception as e:
+            print(f"No se pudo cargar icono del sistema: {e}")
+
+        # If icon not found, try custom SVG path
+        if not icon_loaded:
+            custom_icon_paths = [
+                '/usr/share/pixmaps/vscode.png',
+                '/usr/share/icons/hicolor/256x256/apps/code.png',
+                '/var/lib/snapd/desktop/applications/code_code.desktop',
+                os.path.expanduser('~/.local/share/icons/vscode.png')
+            ]
+
+            for icon_path in custom_icon_paths:
+                if os.path.exists(icon_path):
+                    try:
+                        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(icon_path, 24, 24, True)
+                        icon = Gtk.Image.new_from_pixbuf(pixbuf)
+                        box.pack_start(icon, True, True, 0)
+                        icon_loaded = True
+                        break
+                    except Exception as e:
+                        print(f"Error cargando {icon_path}: {e}")
+
+        # Final fallback: use a styled emoji
+        if not icon_loaded:
+            icon_label = Gtk.Label()
+            icon_label.set_markup('<span font="20" weight="bold" foreground="white">⚡</span>')
+            box.pack_start(icon_label, True, True, 0)
 
         self.button.add(box)
         self.button.connect('clicked', self.on_button_clicked)
@@ -177,30 +269,40 @@ class FloatingButtonApp:
 
         color = self.config.get('button_color', '#007ACC')
 
+        # Convert hex color to rgba with transparency
+        hex_color = color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
         css = f"""
-        window {{
+        * {{
             background-color: transparent;
         }}
 
+        window {{
+            background-color: rgba(0, 0, 0, 0);
+            background: transparent;
+        }}
+
         button {{
-            border-radius: 35px;
-            background: linear-gradient(145deg, {color} 0%, {self.adjust_color(color, -15)} 100%);
+            border-radius: 18px;
+            background: rgba({r}, {g}, {b}, 0.75);
             color: white;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-weight: bold;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s ease;
+            padding: 0;
+            margin: 0;
         }}
 
         button:hover {{
-            background: linear-gradient(145deg, {self.adjust_color(color, 15)} 0%, {color} 100%);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-            border: 3px solid rgba(255, 255, 255, 0.5);
+            background: rgba({r}, {g}, {b}, 0.9);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }}
 
         button:active {{
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 3px rgba(0, 0, 0, 0.3);
-            background: linear-gradient(145deg, {self.adjust_color(color, -10)} 0%, {self.adjust_color(color, -25)} 100%);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            background: rgba({r}, {g}, {b}, 0.65);
         }}
         """.encode('utf-8')
 
@@ -247,6 +349,72 @@ class FloatingButtonApp:
             x = int(event.x_root - self.drag_offset_x)
             y = int(event.y_root - self.drag_offset_y)
             self.window.move(x, y)
+
+    def check_nautilus_focus(self):
+        """Check if Nautilus window is currently focused"""
+        try:
+            # Get the currently active window class
+            result = subprocess.run(
+                ['xdotool', 'getactivewindow', 'getwindowclassname'],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+
+            if result.returncode == 0:
+                window_class = result.stdout.strip().lower()
+                nautilus_focused = 'nautilus' in window_class or 'org.gnome.nautilus' in window_class
+
+                # If focus state changed
+                if nautilus_focused != self.is_nautilus_focused:
+                    self.is_nautilus_focused = nautilus_focused
+
+                    if nautilus_focused:
+                        # Nautilus is focused - fade in
+                        self.fade_in()
+                    else:
+                        # Nautilus not focused - fade out
+                        self.fade_out()
+
+        except Exception as e:
+            # If xdotool fails, keep button visible
+            if not self.is_nautilus_focused:
+                self.is_nautilus_focused = True
+                self.fade_in()
+
+        return True  # Continue timer
+
+    def fade_in(self):
+        """Smoothly fade in the button"""
+        if self.fade_timer:
+            GLib.source_remove(self.fade_timer)
+
+        def animate():
+            if self.window_opacity < 1.0:
+                self.window_opacity = min(1.0, self.window_opacity + 0.1)
+                self.window.set_opacity(self.window_opacity)
+                return True
+            else:
+                self.fade_timer = None
+                return False
+
+        self.fade_timer = GLib.timeout_add(20, animate)
+
+    def fade_out(self):
+        """Smoothly fade out the button"""
+        if self.fade_timer:
+            GLib.source_remove(self.fade_timer)
+
+        def animate():
+            if self.window_opacity > 0.0:
+                self.window_opacity = max(0.0, self.window_opacity - 0.1)
+                self.window.set_opacity(self.window_opacity)
+                return True
+            else:
+                self.fade_timer = None
+                return False
+
+        self.fade_timer = GLib.timeout_add(20, animate)
 
     def on_button_right_click(self, widget, event):
         """Show context menu on right click"""
@@ -985,6 +1153,24 @@ class SettingsDialog:
         label_box.pack_start(self.show_label_switch, False, False, 0)
         box.pack_start(label_box, False, False, 0)
 
+        # Autostart option
+        autostart_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        autostart_label = Gtk.Label(label="Iniciar con el sistema:")
+        autostart_label.set_width_chars(20)
+        autostart_label.set_xalign(0)
+        self.autostart_switch = Gtk.Switch()
+        self.autostart_switch.set_active(self.app.config.get('autostart', False))
+        autostart_box.pack_start(autostart_label, False, False, 0)
+        autostart_box.pack_start(self.autostart_switch, False, False, 0)
+        box.pack_start(autostart_box, False, False, 0)
+
+        # Autostart info
+        autostart_info = Gtk.Label()
+        autostart_info.set_markup('<span font="8" style="italic">💡 El botón aparecerá automáticamente al iniciar sesión</span>')
+        autostart_info.set_xalign(0)
+        autostart_info.set_margin_start(20)
+        box.pack_start(autostart_info, False, False, 0)
+
         # Info
         info = Gtk.Label()
         info.set_markup(
@@ -1021,11 +1207,64 @@ class SettingsDialog:
 
         self.app.config['show_label'] = self.show_label_switch.get_active()
 
+        # Handle autostart
+        autostart_enabled = self.autostart_switch.get_active()
+        self.app.config['autostart'] = autostart_enabled
+
+        if autostart_enabled:
+            self.enable_autostart()
+        else:
+            self.disable_autostart()
+
         # Save to file
         self.app.save_config()
 
         # Restart app to apply changes
         self.show_restart_dialog()
+
+    def enable_autostart(self):
+        """Enable autostart by creating .desktop file"""
+        try:
+            autostart_dir = os.path.expanduser('~/.config/autostart')
+            if not os.path.exists(autostart_dir):
+                os.makedirs(autostart_dir)
+
+            desktop_file = os.path.join(autostart_dir, 'nautilus-vscode-opener.desktop')
+            script_path = os.path.abspath(__file__)
+
+            desktop_content = f"""[Desktop Entry]
+Type=Application
+Name=Nautilus VSCode Opener
+Comment=Floating button to open folders in VSCode from Nautilus
+Exec=python3 "{script_path}"
+Icon=com.visualstudio.code
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
+Categories=Utility;Development;
+StartupNotify=false
+"""
+
+            with open(desktop_file, 'w') as f:
+                f.write(desktop_content)
+
+            # Make it executable
+            os.chmod(desktop_file, 0o755)
+
+            print(f"Autostart habilitado: {desktop_file}")
+
+        except Exception as e:
+            print(f"Error habilitando autostart: {e}")
+
+    def disable_autostart(self):
+        """Disable autostart by removing .desktop file"""
+        try:
+            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-opener.desktop')
+            if os.path.exists(desktop_file):
+                os.remove(desktop_file)
+                print("Autostart deshabilitado")
+        except Exception as e:
+            print(f"Error deshabilitando autostart: {e}")
 
     def on_browse_editor(self, button):
         """Open file chooser to select editor executable"""

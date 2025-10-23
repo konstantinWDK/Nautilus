@@ -1,20 +1,8 @@
-# Archivos de logs y depuración
-*.log
-floating_button.log
-debug.log
-error.log
-
-# Archivos de configuración local del usuario
-config.json
-~/.config/nautilus-vscode-opener/
-
-# Cache de Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
-# Distribución / empaquetado
 .Python
 build/
 develop-eggs/
@@ -28,90 +16,28 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
+# Virtual environments
+venv/
+ENV/
+env/
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Archivos temporales del sistema
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Archivos temporales de Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-
-# IDEs y editores
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Archivos de entorno virtual
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+# Config files (user-specific)
+config.json
 
-# Variables de entorno
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# OS
+.DS_Store
+Thumbs.db
 
-# Archivos de backup
-*.bak
-*.backup
-*.old
-*.orig
-
-# Archivos de procesos
-*.pid
-*.seed
-*.pid.lock
-
-# Archivos específicos del proyecto
-test_output/
-screenshots/
-.testing/
-
-# Archivos de instalación temporal
-*.deb
-*.rpm
-*.tar.gz
-*.zip
-
-# Logs de instalación
-install.log
-uninstall.log
+# Logs
+*.log
