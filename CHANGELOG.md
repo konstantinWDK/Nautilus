@@ -5,7 +5,31 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [3.1.0] - 2025-01-XX
+## [3.2.0] 
+
+### ⚡ Mejorado
+
+#### Gestión de Instalación
+- **Detección automática de versiones anteriores**: El script de compilación detecta instalaciones previas
+- **Limpieza automática**: Script postinst mejorado para limpiar estados inconsistentes
+- **Manejo de conflictos**: Mejor gestión de conflictos entre instalaciones locales y de paquete .deb
+- **Script de limpieza**: Herramienta dedicada para resolver problemas de instalación
+
+#### Proceso de Actualización
+- **Actualización sin conflictos**: Los paquetes .deb ahora manejan mejor las actualizaciones
+- **Detención de procesos**: Se detienen automáticamente las versiones anteriores
+- **Reinicio automático**: La nueva versión se inicia automáticamente después de la instalación
+
+### 🔧 Cambiado
+
+#### Scripts de Instalación
+- **build-deb.sh**: Ahora detecta versiones anteriores y proporciona instrucciones de limpieza
+- **postinst**: Maneja mejor los estados inconsistentes y limpia instalaciones anteriores
+- **install.sh**: Detecta conflictos con instalaciones de paquete .deb
+
+---
+
+## [3.1.0] 
 
 ### ✨ Añadido
 
@@ -34,7 +58,7 @@ y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
-## [3.0.0] - 2025-01-XX
+## [3.0.0] 
 
 ### ✨ Añadido
 
@@ -133,7 +157,7 @@ y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
-## [2.0.0] - 2024-XX-XX
+## [2.0.0] - 
 
 ### Añadido
 - Diseño ultra compacto de 36x36 píxeles
@@ -150,7 +174,7 @@ y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
-## [1.0.0] - 2024-XX-XX
+## [1.0.0] - 
 
 ### Añadido
 - Botón flotante básico
@@ -179,13 +203,3 @@ y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
-## Formato de Versión
-
-Usamos [Versionado Semántico](https://semver.org/lang/es/):
-- **MAJOR** (X.0.0): Cambios incompatibles en la API
-- **MINOR** (0.X.0): Nuevas funcionalidades compatibles
-- **PATCH** (0.0.X): Correcciones de bugs compatibles
-
----
-
-**Nota**: Las fechas se actualizarán cuando se publiquen las versiones oficiales.

@@ -31,6 +31,45 @@ rm -rf "$DEBIAN_DIR/usr" 2>/dev/null || true
 rm -f "$SCRIPT_DIR"/*.deb 2>/dev/null || true
 rm -f "$PROJECT_DIR"/dist/*.deb 2>/dev/null || true
 
+# Verificar si hay una versión anterior instalada y forzar su eliminación si es necesario
+if dpkg -l | grep -q "nautilus-vscode-widget"; then
+    echo -e "${YELLOW}Se detectó una versión anterior instalada. Forzando actualización...${NC}"
+    # Crear un script temporal para limpiar la instalación anterior
+    cat > /tmp/cleanup-nautilus-widget.sh << 'EOF'
+#!/bin/bash
+# Script para limpiar instalación anterior de nautilus-vscode-widget
+
+set -e
+
+echo "Limpiando instalación anterior de Nautilus VSCode Widget..."
+
+# Detener el programa si está corriendo
+pkill -f "nautilus-vscode-widget" 2>/dev/null || true
+pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+
+# Limpiar archivos de dpkg si el paquete está en estado inconsistente
+if dpkg -l | grep -q "nautilus-vscode-widget"; then
+    # Mover archivos de info a /tmp para limpiar estado
+    mv /var/lib/dpkg/info/nautilus-vscode-widget.* /tmp/ 2>/dev/null || true
+    # Forzar eliminación del paquete
+    dpkg --remove --force-remove-reinstreq nautilus-vscode-widget 2>/dev/null || true
+fi
+
+# Eliminar archivos manualmente por si acaso
+rm -f /usr/bin/nautilus-vscode-widget 2>/dev/null || true
+rm -rf /usr/share/nautilus-vscode-widget 2>/dev/null || true
+rm -f /usr/share/applications/nautilus-vscode-widget.desktop 2>/dev/null || true
+rm -rf /usr/share/doc/nautilus-vscode-widget 2>/dev/null || true
+
+echo "Limpieza completada. Listo para nueva instalación."
+EOF
+
+    chmod +x /tmp/cleanup-nautilus-widget.sh
+    echo -e "${YELLOW}Ejecuta el siguiente comando para limpiar la instalación anterior:${NC}"
+    echo -e "  ${CYAN}sudo /tmp/cleanup-nautilus-widget.sh${NC}"
+    echo ""
+fi
+
 # Crear estructura de directorios
 echo -e "${CYAN}Creando estructura de directorios...${NC}"
 mkdir -p "$DEBIAN_DIR/usr/bin"

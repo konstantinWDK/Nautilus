@@ -5,6 +5,25 @@ set -e
 
 echo "Configurando Nautilus VSCode Widget..."
 
+# Detener cualquier instancia anterior que esté ejecutándose
+echo "Deteniendo versiones anteriores..."
+pkill -f "nautilus-vscode-widget" 2>/dev/null || true
+pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+
+# Esperar un momento para asegurar que los procesos se detengan
+sleep 1
+
+# Limpiar archivos de instalaciones anteriores inconsistentes
+echo "Limpiando instalaciones anteriores inconsistentes..."
+if dpkg -l | grep -q "nautilus-vscode-widget"; then
+    # Si el paquete está en estado inconsistente, limpiarlo
+    if dpkg --status nautilus-vscode-widget 2>/dev/null | grep -q "Status:.*unpacked"; then
+        echo "Limpieza de estado inconsistente..."
+        mv /var/lib/dpkg/info/nautilus-vscode-widget.* /tmp/ 2>/dev/null || true
+        dpkg --remove --force-remove-reinstreq nautilus-vscode-widget 2>/dev/null || true
+    fi
+fi
+
 # Crear directorio de configuración para cada usuario
 for user_home in /home/*; do
     if [ -d "$user_home" ]; then
@@ -35,7 +54,12 @@ EOF
     fi
 done
 
+# Iniciar automáticamente la nueva versión
+echo "Iniciando nueva versión..."
+/usr/bin/nautilus-vscode-widget &
+
 echo "Nautilus VSCode Widget instalado correctamente."
+echo "Versión: $(dpkg -s nautilus-vscode-widget 2>/dev/null | grep Version | cut -d' ' -f2 || echo 'Nueva instalación')"
 echo "El programa se iniciará automáticamente en el próximo inicio de sesión."
 echo "O puedes iniciarlo manualmente con: nautilus-vscode-widget"
 

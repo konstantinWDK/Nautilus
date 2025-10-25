@@ -4,7 +4,7 @@
 # Este script crea un acceso directo en el menú de aplicaciones
 
 echo "====================================================="
-echo "  Instalación de Nautilus VSCode Widget v2.0"
+echo "  Instalación de Nautilus VSCode Widget v3.1"
 echo "====================================================="
 echo ""
 
@@ -16,6 +16,22 @@ WIDGET_PATH="$SCRIPT_DIR/nautilus-vscode-widget.py"
 if [ ! -f "$WIDGET_PATH" ]; then
     echo "❌ Error: No se encuentra nautilus-vscode-widget.py"
     exit 1
+fi
+
+# Detener versiones anteriores que puedan estar ejecutándose
+echo "🔄 Deteniendo versiones anteriores..."
+pkill -f "nautilus-vscode-widget" 2>/dev/null || true
+pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+
+# Esperar un momento para asegurar que los procesos se detengan
+sleep 1
+
+# Verificar si hay una instalación de paquete .deb y limpiarla si es necesario
+if dpkg -l | grep -q "nautilus-vscode-widget"; then
+    echo "⚠️  Se detectó una instalación de paquete .deb anterior."
+    echo "   Para evitar conflictos, se recomienda:"
+    echo "   sudo apt remove nautilus-vscode-widget"
+    echo ""
 fi
 
 # Crear directorio de aplicaciones si no existe
