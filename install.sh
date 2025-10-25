@@ -10,10 +10,10 @@ echo ""
 
 # Obtener la ruta del script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-FLOATING_BUTTON_PATH="$SCRIPT_DIR/nautilus-vscode-widget.py"
+WIDGET_PATH="$SCRIPT_DIR/nautilus-vscode-widget.py"
 
 # Verificar que el archivo existe
-if [ ! -f "$FLOATING_BUTTON_PATH" ]; then
+if [ ! -f "$WIDGET_PATH" ]; then
     echo "❌ Error: No se encuentra nautilus-vscode-widget.py"
     exit 1
 fi
@@ -29,8 +29,8 @@ cat > "$DESKTOP_FILE" << INNEREOF
 [Desktop Entry]
 Type=Application
 Name=Nautilus VSCode Widget
-Comment=Botón flotante ultra-compacto para abrir carpetas en VSCode
-Exec=python3 "$FLOATING_BUTTON_PATH"
+Comment=Widget para abrir carpetas de Nautilus en VSCode
+Exec=python3 "$WIDGET_PATH"
 Icon=com.visualstudio.code
 Terminal=false
 Categories=Utility;Development;
@@ -40,24 +40,24 @@ INNEREOF
 
 # Hacer el archivo ejecutable
 chmod +x "$DESKTOP_FILE"
-chmod +x "$FLOATING_BUTTON_PATH"
+chmod +x "$WIDGET_PATH"
 
 echo "✅ Instalación completada!"
 echo ""
 echo "Ahora puedes:"
 echo "  1. Buscar 'Nautilus VSCode Widget' en el menú de aplicaciones"
-echo "  2. Ejecutar: python3 $FLOATING_BUTTON_PATH"
-echo "  3. Configurar inicio automático desde las opciones del botón"
+echo "  2. Ejecutar: python3 $WIDGET_PATH"
+echo "  3. Configurar inicio automático desde las opciones del widget"
 echo ""
-echo "🎨 Características del nuevo diseño:"
-echo "  • Botón ultra-compacto de 36x36 píxeles"
+echo "🎨 Características:"
+echo "  • Widget ultra-compacto de 36x36 píxeles"
 echo "  • Círculo oscuro elegante (#2C2C2C)"
 echo "  • Solo el icono de VSCode, sin etiquetas"
-echo "  • Se oculta suavemente cuando no estás en Nautilus"
-echo "  • Aparece suavemente cuando seleccionas una ventana de Nautilus"
+echo "  • Se oculta cuando no estás en Nautilus (o siempre visible si lo prefieres)"
+echo "  • Sistema de carpetas favoritas con acceso rápido"
 echo "  • Click derecho para configuración"
 echo "  • Opción de inicio automático en el sistema"
 echo ""
-echo "💡 Tip: Arrastra el botón a tu esquina favorita"
+echo "💡 Tip: Arrastra el widget a tu esquina favorita"
 echo ""
 echo "====================================================="

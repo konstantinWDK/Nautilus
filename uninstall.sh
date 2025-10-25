@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Uninstallation script for Floating VSCode Widget
+# Uninstallation script for Nautilus VSCode Widget
 
 set -e
 
 echo "========================================="
-echo "Floating VSCode Widget - Desinstalador"
+echo "Nautilus VSCode Widget - Desinstalador"
 echo "========================================="
 echo ""
 
