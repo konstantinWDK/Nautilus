@@ -18,21 +18,24 @@ import json
 
 class FloatingButtonApp:
     def __init__(self):
-        print("DEBUG: Iniciando FloatingButtonApp")
         self.config_file = os.path.expanduser('~/.config/nautilus-vscode-widget/config.json')
         self.load_config()
-        print(f"DEBUG: Config cargada: always_visible={self.config.get('always_visible', False)}")
 
         # Initialize variables FIRST
         self.current_directory = None
         self.dragging = False
         self.drag_offset_x = 0
         self.drag_offset_y = 0
+        self.drag_start_x = 0  # Posición inicial del arrastre
+        self.drag_start_y = 0  # Posición inicial del arrastre
         self.window_opacity = 1.0
         self.is_nautilus_focused = False
         self.fade_timer = None
         self.favorite_buttons = []  # Lista de botones favoritos
         self.add_button = None  # Botón de añadir carpetas
+        self.animation_timer = None
+        self.favorite_buttons_visible = False
+        self.expand_animation_progress = 0.0
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -76,6 +79,9 @@ class FloatingButtonApp:
         # Create button
         self.create_button()
 
+        # Create favorites container
+        self.create_favorites_container()
+
         # Apply CSS
         self.apply_styles()
 
@@ -115,19 +121,6 @@ class FloatingButtonApp:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             self.window.set_opacity(opacity)
-            print(f"DEBUG: Ventana principal opacity={opacity}")
-
-            # También aplicar a botones favoritos y el botón +
-            if self.add_button:
-                print(f"DEBUG: Aplicando opacity={opacity} al botón +")
-                self.add_button['window'].set_opacity(opacity)
-            else:
-                print("DEBUG: add_button es None")
-
-            print(f"DEBUG: Número de botones favoritos: {len(self.favorite_buttons)}")
-            for i, fav in enumerate(self.favorite_buttons):
-                print(f"DEBUG: Aplicando opacity={opacity} al favorito {i}")
-                fav['window'].set_opacity(opacity)
 
     def set_widget_opacity(self, widget, opacity):
         """Set opacity for a widget"""
@@ -285,160 +278,189 @@ class FloatingButtonApp:
             box.pack_start(icon_label, True, True, 0)
 
         self.button.add(box)
+
+        # Habilitar eventos de mouse en el botón
+        self.button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                              Gdk.EventMask.BUTTON_RELEASE_MASK |
+                              Gdk.EventMask.POINTER_MOTION_MASK)
+
         self.button.connect('clicked', self.on_button_clicked)
 
-        # Right-click menu
-        self.button.connect('button-press-event', self.on_button_right_click)
+        # Right-click menu y drag con click largo
+        self.button.connect('button-press-event', self.on_button_press_event)
+        self.button.connect('button-release-event', self.on_button_release_event)
+        self.button.connect('motion-notify-event', self.on_button_motion)
 
         overlay.add(self.button)
-
-        # Crear botón de añadir (+)
-        self.create_add_button(overlay)
-
-        # Crear botones de carpetas favoritas
-        self.create_favorite_buttons(overlay)
 
         # Tooltip
         self.update_tooltip()
 
-    def create_add_button(self, overlay):
-        """Crear el botón pequeño de añadir (+)"""
-        # Crear ventana flotante para el botón +
-        add_window = Gtk.Window()
-        add_window.set_decorated(False)
-        add_window.set_keep_above(True)
-        add_window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
-        add_window.set_skip_taskbar_hint(True)
-        add_window.set_skip_pager_hint(True)
-        add_window.set_accept_focus(False)
-        add_window.set_app_paintable(True)
-        add_window.set_name("add-button-window")
+    def create_favorites_container(self):
+        """Crear contenedor unificado para botones favoritos"""
+        # Crear ventana para el contenedor de favoritos
+        self.favorites_window = Gtk.Window()
+        self.favorites_window.set_decorated(False)
+        self.favorites_window.set_keep_above(True)
+        self.favorites_window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
+        self.favorites_window.set_skip_taskbar_hint(True)
+        self.favorites_window.set_skip_pager_hint(True)
+        self.favorites_window.set_accept_focus(False)
+        self.favorites_window.set_app_paintable(True)
+        self.favorites_window.set_name("favorites-container")
 
-        # Tamaño más pequeño pero visible
-        btn_size = 24
-        add_window.set_default_size(btn_size, btn_size)
-        add_window.set_resizable(False)
+        # Tamaño del contenedor - se ajustará dinámicamente
+        self.favorites_window.set_default_size(60, 60)
+        self.favorites_window.set_resizable(False)
 
         # Transparencia
         screen = Gdk.Screen.get_default()
         visual = screen.get_rgba_visual()
         if visual:
-            add_window.set_visual(visual)
+            self.favorites_window.set_visual(visual)
 
-        add_window.connect('draw', self.on_draw)
+        self.favorites_window.connect('draw', self.on_draw)
+
+        # Crear layout principal para el contenedor
+        self.favorites_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.favorites_box.set_halign(Gtk.Align.CENTER)  # Centrar horizontalmente todo el contenedor
+        self.favorites_box.set_valign(Gtk.Align.START)  # Alinear al inicio (arriba) para orden correcto
+        self.favorites_box.set_margin_top(4)
+        self.favorites_box.set_margin_bottom(4)
+        self.favorites_box.set_margin_start(4)
+        self.favorites_box.set_margin_end(4)
+
+        self.favorites_window.add(self.favorites_box)
+        self.favorites_window.show_all()
+
+        # Inicialmente oculto
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.favorites_window.set_opacity(0.0)
+
+        # Crear botones favoritos y botón de añadir
+        self.rebuild_favorites_list()
+
+    def rebuild_favorites_list(self):
+        """Reconstruir toda la lista de favoritos en el orden correcto"""
+        # Limpiar todos los botones del contenedor de forma segura
+        children = self.favorites_box.get_children()
+        for child in children:
+            self.favorites_box.remove(child)
+            child.destroy()
+
+        # Limpiar referencias
+        self.favorite_buttons = []
+        self.add_button = None
+
+        # Primero: añadir carpetas favoritas (arriba)
+        for i, folder_path in enumerate(self.config.get('favorite_folders', [])):
+            self.create_favorite_button(folder_path, i)
+
+        # Último: añadir botón + (abajo)
+        self.create_add_button_internal()
+
+        # Aplicar estilos y actualizar posiciones DESPUÉS de crear todos los botones
+        GLib.idle_add(self._post_rebuild_updates)
+
+    def _post_rebuild_updates(self):
+        """Ejecutar actualizaciones después de reconstruir la lista de favoritos"""
+        try:
+            # Aplicar estilos
+            self.apply_styles()
+            # Actualizar posiciones
+            self.update_favorite_positions()
+        except Exception as e:
+            print(f"Error en _post_rebuild_updates: {e}")
+        return False  # No repetir
+
+    def create_add_button_internal(self):
+        """Crear el botón pequeño de añadir (+) en el contenedor de favoritos"""
+        # Tamaño del botón - mismo tamaño que los favoritos para consistencia
+        btn_size = 24
 
         # Crear botón con clase CSS
         add_btn = Gtk.Button()
         add_btn.set_name("add-fav-button")
         add_btn.set_size_request(btn_size, btn_size)
         add_btn.set_relief(Gtk.ReliefStyle.NONE)
+        add_btn.set_halign(Gtk.Align.CENTER)  # Alineación horizontal centrada
+        add_btn.set_valign(Gtk.Align.CENTER)  # Alineación vertical centrada
 
-        # Icono + centrado perfectamente con color verde
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_halign(Gtk.Align.CENTER)
-        box.set_valign(Gtk.Align.CENTER)
-
+        # Icono + más pequeño y discreto
         label = Gtk.Label()
-        label.set_markup('<span font="13" weight="bold" foreground="#78DC78">+</span>')
+        label.set_markup('<span font="10" weight="normal" foreground="white">+</span>')
         label.set_halign(Gtk.Align.CENTER)
         label.set_valign(Gtk.Align.CENTER)
+        label.set_margin_top(0)
+        label.set_margin_bottom(0)
+        label.set_margin_start(0)
+        label.set_margin_end(0)
 
-        box.pack_start(label, True, True, 0)
-        add_btn.add(box)
+        add_btn.add(label)
 
         add_btn.connect('clicked', self.on_add_folder_clicked)
         add_btn.set_tooltip_text("Añadir carpeta favorita")
 
-        add_window.add(add_btn)
-        add_window.connect('realize', lambda w: self.apply_small_circular_shape(w, btn_size))
+        # Añadir al contenedor de favoritos (al final) centrado
+        self.favorites_box.pack_start(add_btn, False, False, 0)
 
         # Guardar referencia
         self.add_button = {
-            'window': add_window,
             'button': add_btn,
             'size': btn_size
         }
 
-        # Posicionar inicialmente (se actualizará en update_favorite_positions)
-        add_window.show_all()
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            add_window.set_opacity(0.0)  # Inicia oculto
+        # Mostrar el botón
+        add_btn.show_all()
+
+    def create_add_button(self, overlay):
+        """Función legacy - usa rebuild_favorites_list en su lugar"""
+        self.create_add_button_internal()
 
     def create_favorite_buttons(self, overlay):
-        """Crear botones para las carpetas favoritas"""
-        # Limpiar botones anteriores
-        for fav in self.favorite_buttons:
-            fav['window'].destroy()
-        self.favorite_buttons = []
-
-        # Crear un botón por cada carpeta favorita
-        for i, folder_path in enumerate(self.config.get('favorite_folders', [])):
-            self.create_favorite_button(folder_path, i)
-
-        # Actualizar posiciones
-        self.update_favorite_positions()
+        """Función legacy - usa rebuild_favorites_list en su lugar"""
+        self.rebuild_favorites_list()
 
     def create_favorite_button(self, folder_path, index):
-        """Crear un botón individual de carpeta favorita"""
-        # Crear ventana flotante
-        fav_window = Gtk.Window()
-        fav_window.set_decorated(False)
-        fav_window.set_keep_above(True)
-        fav_window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
-        fav_window.set_skip_taskbar_hint(True)
-        fav_window.set_skip_pager_hint(True)
-        fav_window.set_accept_focus(False)
-        fav_window.set_app_paintable(True)
-        fav_window.set_name("fav-button-window")
-
-        # Tamaño
-        btn_size = 28
-        fav_window.set_default_size(btn_size, btn_size)
-        fav_window.set_resizable(False)
-
-        # Transparencia
-        screen = Gdk.Screen.get_default()
-        visual = screen.get_rgba_visual()
-        if visual:
-            fav_window.set_visual(visual)
-
-        fav_window.connect('draw', self.on_draw)
+        """Crear un botón individual de carpeta favorita en el contenedor unificado"""
+        # Tamaño del botón - debe ser exactamente igual al del botón +
+        btn_size = 24
 
         # Crear botón con clase CSS única para cada favorito
         fav_btn = Gtk.Button()
         fav_btn.set_name(f"fav-button-{index}")
         fav_btn.set_size_request(btn_size, btn_size)
         fav_btn.set_relief(Gtk.ReliefStyle.NONE)
+        fav_btn.set_halign(Gtk.Align.CENTER)  # Alineación horizontal centrada
+        fav_btn.set_valign(Gtk.Align.CENTER)  # Alineación vertical centrada
 
         # Icono de carpeta con inicial centrado perfectamente
         folder_name = os.path.basename(folder_path)
         initial = folder_name[0].upper() if folder_name else "F"
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_halign(Gtk.Align.CENTER)
-        box.set_valign(Gtk.Align.CENTER)
-
         label = Gtk.Label()
-        label.set_markup(f'<span font="12" weight="bold" foreground="white">{initial}</span>')
         label.set_halign(Gtk.Align.CENTER)
         label.set_valign(Gtk.Align.CENTER)
+        label.set_markup(f'<span font="10" weight="bold" foreground="white">{initial}</span>')
+        label.set_margin_top(0)
+        label.set_margin_bottom(0)
+        label.set_margin_start(0)
+        label.set_margin_end(0)
 
-        box.pack_start(label, True, True, 0)
-        fav_btn.add(box)
+        fav_btn.add(label)
 
         # Conectar eventos
         fav_btn.connect('clicked', lambda b: self.on_favorite_clicked(folder_path))
         fav_btn.connect('button-press-event', lambda w, e: self.on_favorite_right_click(w, e, folder_path))
         fav_btn.set_tooltip_text(f"Abrir: {folder_path}")
 
-        fav_window.add(fav_btn)
-        fav_window.connect('realize', lambda w: self.apply_small_circular_shape(w, btn_size))
+        # Añadir al contenedor de favoritos
+        self.favorites_box.pack_start(fav_btn, False, False, 0)
 
         # Guardar referencia
         fav_data = {
-            'window': fav_window,
             'button': fav_btn,
             'path': folder_path,
             'size': btn_size,
@@ -446,11 +468,8 @@ class FloatingButtonApp:
         }
         self.favorite_buttons.append(fav_data)
 
-        fav_window.show_all()
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            fav_window.set_opacity(0.0)  # Inicia oculto
+        # Mostrar el botón
+        fav_btn.show_all()
 
     def apply_small_circular_shape(self, widget, size):
         """Aplicar forma circular a ventanas pequeñas"""
@@ -467,24 +486,47 @@ class FloatingButtonApp:
 
     def update_favorite_positions(self):
         """Actualizar las posiciones de los botones favoritos y el botón +"""
+        if not hasattr(self, 'favorites_window'):
+            return
+
+        # Calcular tamaño del contenedor basado en número de botones
+        num_buttons = len(self.favorite_buttons)
+
+        # Siempre mostrar el contenedor
+        self.favorites_window.show()
+
+        # Tamaño del contenedor
+        btn_size = 24
+        spacing = 4
+        margin = 8
+
+        # Calcular tamaño del contenedor
+        container_width = btn_size + margin * 2
+        if num_buttons == 0:
+            # Solo el botón + : darle más margen para evitar superposición
+            container_height = btn_size + margin * 2
+        else:
+            # Favoritos + botón +
+            container_height = (btn_size + spacing) * (num_buttons + 1) + margin * 2 - spacing
+
+        self.favorites_window.set_default_size(container_width, container_height)
+
+        # Posicionar el contenedor encima del botón principal
         main_x, main_y = self.window.get_position()
         main_center_x = main_x + self.button_size // 2
-        main_center_y = main_y + self.button_size // 2
 
-        # Posicionar botón de añadir (+) - encima del botón principal
-        if self.add_button:
-            add_x = main_center_x - self.add_button['size'] // 2
-            add_y = main_y - self.add_button['size'] - 8  # 8px de separación
-            self.add_button['window'].move(add_x, add_y)
+        # Calcular posición centrada horizontalmente
+        container_x = main_center_x - container_width // 2
 
-        # Posicionar botones favoritos en una columna vertical encima del botón +
-        spacing = 6  # Espaciado entre botones
-        for i, fav in enumerate(self.favorite_buttons):
-            fav_x = main_center_x - fav['size'] // 2
-            # Calculamos Y desde arriba hacia abajo
-            offset_from_main = self.add_button['size'] + 8 + (i + 1) * (fav['size'] + spacing)
-            fav_y = main_y - offset_from_main
-            fav['window'].move(fav_x, fav_y)
+        # Posicionar encima del botón principal con separación adecuada
+        # Aumentar la separación para evitar superposición
+        separation = 12 if num_buttons == 0 else 8  # Más separación cuando solo está el botón +
+        container_y = main_y - container_height - separation
+
+        self.favorites_window.move(container_x, container_y)
+
+        # Aplicar opacidad al contenedor de favoritos
+        self.set_widget_opacity(self.favorites_window, self.window_opacity)
 
     def on_add_folder_clicked(self, button):
         """Manejar clic en el botón de añadir carpeta"""
@@ -508,14 +550,12 @@ class FloatingButtonApp:
                 self.config['favorite_folders'].append(folder_path)
                 self.save_config()
 
-                # Crear el nuevo botón
-                index = len(self.favorite_buttons)
-                self.create_favorite_button(folder_path, index)
-                self.update_favorite_positions()
+                # Reconstruir lista completa de favoritos (incluye update_favorite_positions)
+                self.rebuild_favorites_list()
 
-                # Si Nautilus está enfocado, mostrar el nuevo botón
-                if self.is_nautilus_focused:
-                    self.set_widget_opacity(self.favorite_buttons[-1]['window'], self.window_opacity)
+                # Si Nautilus está enfocado, mostrar el contenedor de favoritos
+                if self.is_nautilus_focused and hasattr(self, 'favorites_window'):
+                    self.set_widget_opacity(self.favorites_window, self.window_opacity)
 
         dialog.destroy()
 
@@ -532,8 +572,16 @@ class FloatingButtonApp:
         if event.button == 3:  # Clic derecho
             menu = Gtk.Menu()
 
+            # Item para cambiar color
+            color_item = Gtk.MenuItem(label="🎨 Cambiar color")
+            color_item.connect('activate', lambda x: self.show_color_picker(folder_path))
+            menu.append(color_item)
+
+            # Separator
+            menu.append(Gtk.SeparatorMenuItem())
+
             # Item para eliminar
-            delete_item = Gtk.MenuItem(label=f"Eliminar de favoritos")
+            delete_item = Gtk.MenuItem(label="❌ Eliminar de favoritos")
             delete_item.connect('activate', lambda x: self.remove_favorite_folder(folder_path))
             menu.append(delete_item)
 
@@ -548,20 +596,41 @@ class FloatingButtonApp:
             self.config['favorite_folders'].remove(folder_path)
             self.save_config()
 
-            # Eliminar el botón correspondiente
-            for fav in self.favorite_buttons:
-                if fav['path'] == folder_path:
-                    fav['window'].destroy()
-                    self.favorite_buttons.remove(fav)
-                    break
+            # Reconstruir lista completa de favoritos (incluye update_favorite_positions)
+            self.rebuild_favorites_list()
 
-            # Re-indexar y reposicionar
-            for i, fav in enumerate(self.favorite_buttons):
-                fav['index'] = i
-            self.update_favorite_positions()
+    def show_color_picker(self, folder_path):
+        """Mostrar diálogo para cambiar color de carpeta favorita"""
+        dialog = Gtk.ColorChooserDialog(
+            title=f"Color para {os.path.basename(folder_path)}",
+            parent=None
+        )
+
+        # Establecer color actual
+        current_color = self.config.get('favorite_colors', {}).get(folder_path, '#1E1E23')
+        color = Gdk.RGBA()
+        color.parse(current_color)
+        dialog.set_rgba(color)
+
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            # Guardar nuevo color
+            new_color = dialog.get_rgba()
+            color_hex = f'#{int(new_color.red*255):02x}{int(new_color.green*255):02x}{int(new_color.blue*255):02x}'
+            
+            # Actualizar configuración
+            if 'favorite_colors' not in self.config:
+                self.config['favorite_colors'] = {}
+            self.config['favorite_colors'][folder_path] = color_hex
+            self.save_config()
+
+            # Aplicar nuevos estilos
+            self.apply_styles()
+
+        dialog.destroy()
 
     def apply_styles(self):
-        """Apply CSS styles to the window and button"""
+        """Apply modern CSS styles with animations and glassmorphism effects"""
         css_provider = Gtk.CssProvider()
 
         color = self.config.get('button_color', '#007ACC')
@@ -570,38 +639,34 @@ class FloatingButtonApp:
         hex_color = color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
-        # Generar CSS para botones favoritos con colores personalizados
+        # Generate dynamic CSS for favorite buttons with custom colors
         favorite_css = ""
-        favorite_colors = self.config.get('favorite_colors', {})
-        
-        for i, folder_path in enumerate(self.config.get('favorite_folders', [])):
-            # Usar color personalizado si existe, o color por defecto
-            fav_color = favorite_colors.get(folder_path, '#1E1E23')
+        for i, fav in enumerate(self.favorite_buttons):
+            folder_path = fav['path']
+            fav_color = self.config.get('favorite_colors', {}).get(folder_path, '#1E1E23')
             fav_hex = fav_color.lstrip('#')
             fav_r, fav_g, fav_b = tuple(int(fav_hex[i:i+2], 16) for i in (0, 2, 4))
             
             favorite_css += f"""
             /* Botón favorito para {os.path.basename(folder_path)} */
             #fav-button-{i} {{
-                border-radius: 14px;
-                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.85);
+                border-radius: 12px;
+                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.95);
                 color: white;
-                border: none;
-                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
-                transition: all 0.2s ease;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 padding: 0;
                 margin: 0;
             }}
 
-            #fav-button-{i}:hover {{
-                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.95);
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
-            }}
+        #fav-button-{i}:hover {{
+            background: rgba({fav_r}, {fav_g}, {fav_b}, 1.0);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }}
 
-            #fav-button-{i}:active {{
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.9);
-            }}
+        #fav-button-{i}:active {{
+            background: rgba({fav_r}, {fav_g}, {fav_b}, 0.85);
+        }}
             """
 
         css = f"""
@@ -611,66 +676,70 @@ class FloatingButtonApp:
             background: transparent;
         }}
 
-        /* Botón principal */
+        /* Contenedor de favoritos con fondo personalizable */
+        #favorites-container {{
+            background: rgba(40, 40, 45, 0.95);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }}
+
+        /* Botón principal - simple sin sombras */
         #floating-button button {{
-            border-radius: 18px;
+            border-radius: 20px;
             background: rgba({r}, {g}, {b}, 0.95);
             color: white;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-            transition: all 0.2s ease;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
         }}
 
         #floating-button button:hover {{
             background: rgba({r}, {g}, {b}, 1.0);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
-            border: 2px solid rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.35);
         }}
 
         #floating-button button:active {{
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
             background: rgba({r}, {g}, {b}, 0.85);
         }}
 
-        /* Botón + de añadir favoritos - Solo el símbolo sin fondo */
+        /* Botón + de añadir favoritos - simple sin sombras */
         #add-fav-button {{
-            background: transparent;
-            color: rgba(120, 220, 120, 1.0);
-            border: none;
-            box-shadow: none;
-            transition: all 0.2s ease;
+            border-radius: 12px;
+            background: rgba(60, 60, 65, 0.85);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
+            opacity: 0.85;
         }}
 
         #add-fav-button label {{
             padding: 0;
             margin: 0;
+            min-width: 0;
+            min-height: 0;
         }}
 
         #add-fav-button:hover {{
-            background: transparent;
-            color: rgba(140, 240, 140, 1.0);
-            border: none;
-            box-shadow: 0 0 8px rgba(120, 220, 120, 0.5);
+            background: rgba(80, 80, 85, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            opacity: 1.0;
         }}
 
         #add-fav-button:active {{
-            box-shadow: none;
-            background: transparent;
-            color: rgba(100, 200, 100, 1.0);
+            background: rgba(50, 50, 55, 0.8);
+            opacity: 0.9;
         }}
 
-        /* Botones de carpetas favoritas por defecto */
+        /* Botones de carpetas favoritas por defecto - sin sombras */
         #fav-button {{
-            border-radius: 14px;
-            background: rgba(30, 30, 35, 0.85);
+            border-radius: 12px;
+            background: rgba(30, 30, 35, 0.95);
             color: white;
-            border: none;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
-            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
         }}
@@ -678,16 +747,17 @@ class FloatingButtonApp:
         #fav-button label {{
             padding: 0;
             margin: 0;
+            min-width: 0;
+            min-height: 0;
         }}
 
         #fav-button:hover {{
-            background: rgba(40, 40, 45, 0.95);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+            background: rgba(40, 40, 45, 1.0);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }}
 
         #fav-button:active {{
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-            background: rgba(25, 25, 30, 0.9);
+            background: rgba(25, 25, 30, 0.85);
         }}
 
         {favorite_css}
@@ -712,8 +782,57 @@ class FloatingButtonApp:
 
         return f'#{r:02x}{g:02x}{b:02x}'
 
+    def on_button_press_event(self, widget, event):
+        """Handle button press on the main button - for dragging and right-click menu"""
+        if event.button == 1:  # Left click
+            self.dragging = True
+            self.drag_start_x = event.x_root
+            self.drag_start_y = event.y_root
+            x, y = self.window.get_position()
+            self.drag_offset_x = event.x_root - x
+            self.drag_offset_y = event.y_root - y
+            # No capturar el evento para permitir que se propague
+            return False
+        elif event.button == 3:  # Right click
+            return self.on_button_right_click(widget, event)
+        return False
+
+    def on_button_release_event(self, widget, event):
+        """Handle button release on the main button"""
+        if event.button == 1:
+            # Check if it was a drag or a click
+            if self.dragging:
+                drag_distance = ((event.x_root - self.drag_start_x) ** 2 +
+                               (event.y_root - self.drag_start_y) ** 2) ** 0.5
+
+                if drag_distance < 5:  # Less than 5 pixels = click, not drag
+                    # It's a click, trigger the button action
+                    self.dragging = False
+                    return False  # Let the clicked signal handle it
+                else:
+                    # It was a drag
+                    self.dragging = False
+                    # Save new position
+                    x, y = self.window.get_position()
+                    self.config['position_x'] = x
+                    self.config['position_y'] = y
+                    self.save_config()
+                    return True  # Prevent clicked signal
+        return False
+
+    def on_button_motion(self, widget, event):
+        """Handle mouse motion on the button for dragging"""
+        if self.dragging:
+            x = int(event.x_root - self.drag_offset_x)
+            y = int(event.y_root - self.drag_offset_y)
+            self.window.move(x, y)
+            # Actualizar posiciones de botones favoritos y botón de añadir
+            self.update_favorite_positions()
+            return True
+        return False
+
     def on_button_press(self, widget, event):
-        """Handle button press for dragging"""
+        """Handle button press for dragging on window"""
         if event.button == 1:  # Left click
             self.dragging = True
             x, y = self.window.get_position()
@@ -721,7 +840,7 @@ class FloatingButtonApp:
             self.drag_offset_y = event.y_root - y
 
     def on_button_release(self, widget, event):
-        """Handle button release"""
+        """Handle button release on window"""
         if event.button == 1:
             self.dragging = False
             # Save new position
@@ -731,7 +850,7 @@ class FloatingButtonApp:
             self.save_config()
 
     def on_motion(self, widget, event):
-        """Handle mouse motion for dragging"""
+        """Handle mouse motion for dragging on window"""
         if self.dragging:
             x = int(event.x_root - self.drag_offset_x)
             y = int(event.y_root - self.drag_offset_y)
@@ -743,9 +862,7 @@ class FloatingButtonApp:
         """Check if Nautilus window is currently focused and has valid directory"""
         # Si está configurado para mostrar siempre, mantener visible
         if self.config.get('always_visible', False):
-            print(f"DEBUG: always_visible=True, opacity actual={self.window_opacity}")
             if not self.is_nautilus_focused or self.window_opacity < 1.0:
-                print("DEBUG: Llamando a fade_in()")
                 self.is_nautilus_focused = True
                 self.fade_in()
             return True
@@ -801,25 +918,56 @@ class FloatingButtonApp:
         return True  # Continue timer
 
     def fade_in(self):
-        """Smoothly fade in the button"""
+        """Smoothly fade in the button with animations"""
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
 
         # Actualizar posiciones de botones secundarios antes de mostrar
         self.update_favorite_positions()
 
-        # Mostrar inmediatamente sin animación
-        self.window_opacity = 1.0
-        self.set_window_opacity(1.0)
+        # Animación suave de fade in
+        self.animate_fade_in()
 
     def fade_out(self):
-        """Smoothly fade out the button"""
+        """Smoothly fade out the button with animations"""
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
 
-        # Ocultar inmediatamente sin animación
-        self.window_opacity = 0.0
-        self.set_window_opacity(0.0)
+        # Animación suave de fade out
+        self.animate_fade_out()
+
+    def animate_fade_in(self):
+        """Animate fade in with smooth transitions"""
+        if self.window_opacity >= 1.0:
+            return
+
+        self.window_opacity = min(1.0, self.window_opacity + 0.1)
+        self.set_window_opacity(self.window_opacity)
+
+        if self.window_opacity < 1.0:
+            self.fade_timer = GLib.timeout_add(20, self.animate_fade_in)
+        else:
+            # Una vez que el botón principal está visible, animar los favoritos
+            self.animate_favorites_expand()
+
+    def animate_fade_out(self):
+        """Animate fade out with smooth transitions"""
+        if self.window_opacity <= 0.0:
+            return
+
+        self.window_opacity = max(0.0, self.window_opacity - 0.1)
+        self.set_window_opacity(self.window_opacity)
+
+        if self.window_opacity > 0.0:
+            self.fade_timer = GLib.timeout_add(20, self.animate_fade_out)
+        else:
+            self.favorite_buttons_visible = False
+            self.expand_animation_progress = 0.0
+
+    def animate_favorites_expand(self):
+        """Mostrar botones favoritos sin animaciones"""
+        # Sin animaciones - simplemente actualizar posiciones
+        self.update_favorite_positions()
 
     def on_button_right_click(self, widget, event):
         """Show context menu on right click"""
@@ -882,14 +1030,11 @@ class FloatingButtonApp:
                 start_new_session=True
             )
             
-            print(f"Abriendo {self.current_directory} con {editor_cmd}")
             return True
             
         except FileNotFoundError:
-            print(f"Editor {self.config.get('editor_command')} no encontrado")
             return False
         except Exception as e:
-            print(f"Error abriendo editor: {e}")
             return False
     
     def try_open_with_common_editors(self):
@@ -1651,11 +1796,11 @@ class SettingsDialog:
             box.pack_start(dir_info, False, False, 0)
 
         # Credits footer
-        credits_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        credits_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         credits_box.set_margin_top(20)
 
         credits_label = Gtk.Label()
-        credits_label.set_markup('<span font="6" foreground="#888888">Realizado por Konstantin WDK</span>')
+        credits_label.set_markup('<span font="7" foreground="#888888">Realizado por Konstantin WDK</span>')
         credits_label.set_xalign(0.5)
         credits_box.pack_start(credits_label, False, False, 0)
 
@@ -1663,14 +1808,7 @@ class SettingsDialog:
         web_button = Gtk.LinkButton.new_with_label("https://webdesignerk.com", "webdesignerk.com")
         web_button.set_relief(Gtk.ReliefStyle.NONE)
         web_button.set_halign(Gtk.Align.CENTER)
-        web_button.get_child().set_markup('<span font="6">webdesignerk.com</span>')
         credits_box.pack_start(web_button, False, False, 0)
-
-        # Version info
-        version_label = Gtk.Label()
-        version_label.set_markup('<span font="6" foreground="#666666">Release: 3.2.1</span>')
-        version_label.set_xalign(0.5)
-        credits_box.pack_start(version_label, False, False, 0)
 
         box.pack_end(credits_box, False, False, 0)
 

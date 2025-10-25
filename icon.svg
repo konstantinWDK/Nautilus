@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007ACC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0098FF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="folderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFA500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF8C00;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Círculo de fondo azul VSCode -->
+  <circle cx="64" cy="64" r="58" fill="url(#bgGradient)"/>
+
+  <!-- Carpeta Nautilus -->
+  <g transform="translate(24, 38)">
+    <path d="M 0 8 L 0 4 C 0 2 2 0 4 0 L 20 0 L 24 8 Z" fill="url(#folderGradient)"/>
+    <rect x="0" y="8" width="52" height="32" rx="3" fill="url(#folderGradient)"/>
+    <path d="M 4 12 L 48 12 L 48 15 L 4 15 Z" fill="#FFFFFF" opacity="0.2"/>
+  </g>
+
+  <!-- Símbolo de código <> -->
+  <g transform="translate(52, 50)">
+    <path d="M 6 0 L 0 10 L 6 20" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+    <path d="M 18 0 L 24 10 L 18 20" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- Widgets flotantes apilados (3 círculos) - más separados y mucho más arriba -->
+  <!-- Círculo superior -->
+  <circle cx="96" cy="44" r="10" fill="#FFFFFF" opacity="0.85"/>
+  <circle cx="96" cy="44" r="6" fill="#E0E0E0"/>
+
+  <!-- Círculo medio -->
+  <circle cx="96" cy="62" r="11" fill="#FFFFFF" opacity="0.9"/>
+  <circle cx="96" cy="62" r="7" fill="#D0D0D0"/>
+
+  <!-- Círculo inferior con logo VSCode -->
+  <circle cx="96" cy="82" r="13" fill="#FFFFFF" opacity="0.95"/>
+  <circle cx="96" cy="82" r="11" fill="url(#bgGradient)"/>
+
+  <!-- Logo VSCode simplificado dentro del círculo inferior -->
+  <g transform="translate(96, 82)">
+    <!-- Forma característica de VSCode -->
+    <path d="M -4 -5 L 3 -5 L 3 5 L -4 0 Z" fill="#FFFFFF" opacity="0.9"/>
+    <path d="M -5 -2 L -2 0 L -5 2 Z" fill="#FFFFFF" opacity="0.9"/>
+    <circle cx="0" cy="0" r="0.8" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Borde del círculo principal -->
+  <circle cx="64" cy="64" r="58" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.3"/>
+</svg>

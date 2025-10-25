@@ -39,7 +39,7 @@ Type=Application
 Name=Nautilus VSCode Widget
 Comment=Floating button to open folders in VSCode from Nautilus
 Exec=/usr/bin/nautilus-vscode-widget
-Icon=com.visualstudio.code
+Icon=nautilus-vscode-widget
 Terminal=false
 Hidden=false
 X-GNOME-Autostart-enabled=true
@@ -52,6 +52,17 @@ EOF
         chmod +x "$autostart_dir/nautilus-vscode-widget.desktop" 2>/dev/null || true
     fi
 done
+
+# Actualizar caché de iconos
+echo "Actualizando caché de iconos..."
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+# Actualizar base de datos de aplicaciones
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications 2>/dev/null || true
+fi
 
 # Iniciar automáticamente la nueva versión
 echo "Iniciando nueva versión..."

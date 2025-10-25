@@ -650,28 +650,22 @@ class FloatingButtonApp:
             favorite_css += f"""
             /* Botón favorito para {os.path.basename(folder_path)} */
             #fav-button-{i} {{
-                border-radius: 14px;
-                background: linear-gradient(135deg, rgba({fav_r}, {fav_g}, {fav_b}, 0.9), rgba({fav_r}, {fav_g}, {fav_b}, 0.7));
+                border-radius: 12px;
+                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.95);
                 color: white;
                 border: 1px solid rgba(255, 255, 255, 0.2);
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
-                            inset 0 1px 0 rgba(255, 255, 255, 0.1);
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 padding: 0;
                 margin: 0;
             }}
 
         #fav-button-{i}:hover {{
-            background: linear-gradient(135deg, rgba({fav_r}, {fav_g}, {fav_b}, 1.0), rgba({fav_r}, {fav_g}, {fav_b}, 0.8));
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            background: rgba({fav_r}, {fav_g}, {fav_b}, 1.0);
             border: 1px solid rgba(255, 255, 255, 0.3);
         }}
 
         #fav-button-{i}:active {{
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            background: linear-gradient(135deg, rgba({fav_r}, {fav_g}, {fav_b}, 0.8), rgba({fav_r}, {fav_g}, {fav_b}, 0.6));
+            background: rgba({fav_r}, {fav_g}, {fav_b}, 0.85);
         }}
             """
 
@@ -684,47 +678,37 @@ class FloatingButtonApp:
 
         /* Contenedor de favoritos con fondo personalizable */
         #favorites-container {{
-            background: linear-gradient(135deg, rgba(40, 40, 45, 0.95), rgba(35, 35, 40, 0.85));
+            background: rgba(40, 40, 45, 0.95);
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }}
 
-        /* Botón principal con efecto glassmorphism */
+        /* Botón principal - simple sin sombras */
         #floating-button button {{
             border-radius: 20px;
-            background: linear-gradient(135deg, rgba({r}, {g}, {b}, 0.95), rgba({r}, {g}, {b}, 0.8));
+            background: rgba({r}, {g}, {b}, 0.95);
             color: white;
             border: 2px solid rgba(255, 255, 255, 0.25);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.15);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
         }}
 
         #floating-button button:hover {{
-            background: linear-gradient(135deg, rgba({r}, {g}, {b}, 1.0), rgba({r}, {g}, {b}, 0.9));
-            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            background: rgba({r}, {g}, {b}, 1.0);
             border: 2px solid rgba(255, 255, 255, 0.35);
         }}
 
         #floating-button button:active {{
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            background: linear-gradient(135deg, rgba({r}, {g}, {b}, 0.85), rgba({r}, {g}, {b}, 0.7));
+            background: rgba({r}, {g}, {b}, 0.85);
         }}
 
-        /* Botón + de añadir favoritos - minimalista y discreto */
+        /* Botón + de añadir favoritos - simple sin sombras */
         #add-fav-button {{
             border-radius: 12px;
-            background: linear-gradient(135deg, rgba(60, 60, 65, 0.7), rgba(50, 50, 55, 0.6));
+            background: rgba(60, 60, 65, 0.85);
             color: white;
             border: 1px solid rgba(255, 255, 255, 0.15);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.08);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
@@ -739,28 +723,22 @@ class FloatingButtonApp:
         }}
 
         #add-fav-button:hover {{
-            background: linear-gradient(135deg, rgba(80, 80, 85, 0.9), rgba(70, 70, 75, 0.8));
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            background: rgba(80, 80, 85, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.25);
             opacity: 1.0;
         }}
 
         #add-fav-button:active {{
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            background: linear-gradient(135deg, rgba(50, 50, 55, 0.75), rgba(40, 40, 45, 0.65));
+            background: rgba(50, 50, 55, 0.8);
             opacity: 0.9;
         }}
 
-        /* Botones de carpetas favoritas por defecto */
+        /* Botones de carpetas favoritas por defecto - sin sombras */
         #fav-button {{
-            border-radius: 14px;
-            background: linear-gradient(135deg, rgba(30, 30, 35, 0.9), rgba(25, 25, 30, 0.7));
+            border-radius: 12px;
+            background: rgba(30, 30, 35, 0.95);
             color: white;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
@@ -774,16 +752,12 @@ class FloatingButtonApp:
         }}
 
         #fav-button:hover {{
-            background: linear-gradient(135deg, rgba(40, 40, 45, 1.0), rgba(35, 35, 40, 0.8));
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            background: rgba(40, 40, 45, 1.0);
             border: 1px solid rgba(255, 255, 255, 0.3);
         }}
 
         #fav-button:active {{
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            background: linear-gradient(135deg, rgba(25, 25, 30, 0.8), rgba(20, 20, 25, 0.6));
+            background: rgba(25, 25, 30, 0.85);
         }}
 
         {favorite_css}
