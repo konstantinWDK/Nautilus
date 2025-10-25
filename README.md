@@ -25,6 +25,7 @@ Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus 
 
 ## 🚀 Instalación Rápida
 
+### Método 1: Script de instalación
 ```bash
 # Ejecutar el script de instalación
 chmod +x install.sh
@@ -32,6 +33,16 @@ chmod +x install.sh
 ```
 
 Esto creará un acceso directo en tu menú de aplicaciones.
+
+### Método 2: Instalación desde archivo .deb
+Si tienes el archivo `.deb` en la carpeta `dist/`:
+
+```bash
+# Instalar desde el archivo .deb
+sudo dpkg -i dist/nautilus-vscode-opener_3.0.0_all.deb
+```
+
+El programa se instalará automáticamente y estará disponible en tu menú de aplicaciones.
 
 ## 📖 Uso
 
