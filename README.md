@@ -5,7 +5,9 @@ Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus 
 ## ✨ Características Principales
 
 - **Aparición Inteligente**: Solo se muestra cuando Nautilus está en foco (o siempre si lo prefieres)
-- **Carpetas Favoritas**: Añade y accede rápidamente a tus carpetas favoritas
+- **Carpetas Favoritas**: Añade y accede rápidamente a tus carpetas favoritas con diseño minimalista
+  - Botón "+" verde flotante sin fondo para añadir favoritos
+  - Círculos oscuros semi-transparentes con iniciales para cada carpeta
 - **Transparencia Circular**: Diseño circular perfecto sin fondo cuadrado
 - **Ultra Compacto**: Solo **36x36 píxeles** de diseño minimalista
 - **Detección Avanzada**: Múltiples métodos (DBus, xdotool, wmctrl) para detectar carpetas
@@ -83,9 +85,11 @@ nautilus-vscode-widget
 - **Arrastrar**: Mueve el botón a otra posición (mantén presionado y arrastra)
 
 **Carpetas favoritas:**
-- **Botón "+"**: Añade una carpeta favorita (aparece arriba del botón principal)
-- **Botones de carpetas**: Click para abrir directamente esa carpeta en VSCode
+- **Botón "+"**: Símbolo verde flotante sin fondo, aparece arriba del botón principal
+- **Botones de carpetas**: Círculos oscuros semi-transparentes con la inicial de la carpeta
+- **Click en favorito**: Abre directamente esa carpeta en VSCode
 - **Click derecho en favorito**: Eliminar de favoritos
+- **Hover**: Efecto de brillo al pasar el mouse sobre los botones
 
 ## ⚙️ Configuración
 
@@ -117,9 +121,11 @@ Esto creará un archivo `.desktop` en `~/.config/autostart/`
   - Útil si trabajas frecuentemente con VSCode
 
 ### Carpetas Favoritas
-- **Botón "+"**: Aparece arriba del botón principal cuando el widget está visible
-- **Botones de carpetas**: Se muestran en columna vertical sobre el botón "+"
-- **Identificación**: Cada botón muestra la inicial de la carpeta
+- **Botón "+"**: Símbolo verde (#78DC78) sin fondo circular, flotante y minimalista
+- **Botones de carpetas**: Círculos oscuros semi-transparentes (rgba(30, 30, 35, 0.85))
+- **Identificación**: Cada botón muestra la inicial de la carpeta en blanco
+- **Distribución**: Se muestran en columna vertical sobre el botón "+"
+- **Diseño**: UI minimalista con efectos de hover y sombras suaves
 
 ### Efectos Interactivos
 - **Hover**: El botón aumenta brillo y sombra al pasar el mouse
@@ -219,14 +225,21 @@ sudo apt install python3-gi gir1.2-gtk-3.0 xdotool x11-utils
 
 Para ver el historial completo de cambios, consulta [CHANGELOG.md](CHANGELOG.md)
 
-### Versión 3.0 (Actual)
+### Versión 3.1.0 (Actual)
+- 🎨 Diseño minimalista mejorado para carpetas favoritas
+  - Botón "+" verde flotante sin fondo circular
+  - Círculos oscuros semi-transparentes para favoritos
+  - Centrado perfecto de texto en botones circulares
+- 🐛 Corrección de advertencias de deprecación GTK3
+- 🐛 Solucionado CSS global que afectaba Nautilus
+
+### Versión 3.0
 - ✨ Aparición inteligente: solo visible cuando Nautilus está enfocado
 - 📁 Sistema de carpetas favoritas con acceso rápido
 - 🎯 Modo "Mostrar siempre" opcional
 - 🎨 Tema oscuro moderno en menús y diálogos
 - 🔍 Detección mejorada con DBus
 - 🚀 Código optimizado y compatibilidad GTK3 mejorada
-- 🐛 Corrección de advertencias de deprecación
 
 ## 📝 Licencia
 

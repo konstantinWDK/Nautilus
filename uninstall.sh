@@ -17,18 +17,36 @@ NC='\033[0m' # No Color
 echo "Deteniendo la aplicación..."
 pkill -f "nautilus-vscode-widget.py" 2>/dev/null && echo -e "${GREEN}Aplicación detenida${NC}" || echo "La aplicación no estaba en ejecución"
 
-# Remove desktop entry
+# Remove desktop entries (current and old versions)
+echo ""
+echo "Eliminando archivos .desktop..."
 DESKTOP_FILE="$HOME/.local/share/applications/nautilus-vscode-widget.desktop"
 if [ -f "$DESKTOP_FILE" ]; then
     rm "$DESKTOP_FILE"
-    echo -e "${GREEN}Archivo desktop eliminado${NC}"
+    echo -e "${GREEN}✓ nautilus-vscode-widget.desktop eliminado${NC}"
 fi
 
-# Remove autostart entry
+# Remove old desktop files
+OLD_DESKTOP="$HOME/.local/share/applications/nautilus-vscode-opener.desktop"
+if [ -f "$OLD_DESKTOP" ]; then
+    rm "$OLD_DESKTOP"
+    echo -e "${GREEN}✓ nautilus-vscode-opener.desktop (antiguo) eliminado${NC}"
+fi
+
+# Remove autostart entries (current and old versions)
+echo ""
+echo "Eliminando archivos de autostart..."
 AUTOSTART_FILE="$HOME/.config/autostart/nautilus-vscode-widget.desktop"
 if [ -f "$AUTOSTART_FILE" ]; then
     rm "$AUTOSTART_FILE"
-    echo -e "${GREEN}Inicio automático deshabilitado${NC}"
+    echo -e "${GREEN}✓ Autostart eliminado${NC}"
+fi
+
+# Remove old autostart files
+OLD_AUTOSTART="$HOME/.config/autostart/nautilus-vscode-opener.desktop"
+if [ -f "$OLD_AUTOSTART" ]; then
+    rm "$OLD_AUTOSTART"
+    echo -e "${GREEN}✓ Autostart antiguo eliminado${NC}"
 fi
 
 # Remove config directory

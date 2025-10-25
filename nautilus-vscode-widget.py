@@ -18,8 +18,10 @@ import json
 
 class FloatingButtonApp:
     def __init__(self):
+        print("DEBUG: Iniciando FloatingButtonApp")
         self.config_file = os.path.expanduser('~/.config/nautilus-vscode-widget/config.json')
         self.load_config()
+        print(f"DEBUG: Config cargada: always_visible={self.config.get('always_visible', False)}")
 
         # Initialize variables FIRST
         self.current_directory = None
@@ -96,28 +98,43 @@ class FloatingButtonApp:
 
         # Show window but start with opacity 0 - let the timer handle visibility
         self.window.show_all()
+
+        # Ocultar todo inicialmente
         self.set_window_opacity(0.0)
         self.window_opacity = 0.0
         self.is_nautilus_focused = False
 
+        # Posicionar botones secundarios después de que la ventana esté visible
+        # Se hará en el primer fade_in()
+
     def set_window_opacity(self, opacity):
         """Set opacity for main window"""
         self.window_opacity = opacity
-        # Usar hide/show en lugar de opacity para mejor compatibilidad
-        if opacity <= 0.0:
-            self.window.hide()
-        else:
-            if not self.window.get_visible():
-                self.window.show_all()
+        # Suprimir warnings de deprecación temporalmente
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            self.window.set_opacity(opacity)
+            print(f"DEBUG: Ventana principal opacity={opacity}")
+
+            # También aplicar a botones favoritos y el botón +
+            if self.add_button:
+                print(f"DEBUG: Aplicando opacity={opacity} al botón +")
+                self.add_button['window'].set_opacity(opacity)
+            else:
+                print("DEBUG: add_button es None")
+
+            print(f"DEBUG: Número de botones favoritos: {len(self.favorite_buttons)}")
+            for i, fav in enumerate(self.favorite_buttons):
+                print(f"DEBUG: Aplicando opacity={opacity} al favorito {i}")
+                fav['window'].set_opacity(opacity)
 
     def set_widget_opacity(self, widget, opacity):
         """Set opacity for a widget"""
-        # Usar hide/show en lugar de opacity
-        if opacity <= 0.0:
-            widget.hide()
-        else:
-            if not widget.get_visible():
-                widget.show_all()
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            widget.set_opacity(opacity)
 
     def on_draw(self, widget, cr):
         """Draw transparent background"""
@@ -294,8 +311,9 @@ class FloatingButtonApp:
         add_window.set_skip_pager_hint(True)
         add_window.set_accept_focus(False)
         add_window.set_app_paintable(True)
+        add_window.set_name("add-button-window")
 
-        # Tamaño más pequeño
+        # Tamaño más pequeño pero visible
         btn_size = 24
         add_window.set_default_size(btn_size, btn_size)
         add_window.set_resizable(False)
@@ -308,15 +326,24 @@ class FloatingButtonApp:
 
         add_window.connect('draw', self.on_draw)
 
-        # Crear botón
+        # Crear botón con clase CSS
         add_btn = Gtk.Button()
+        add_btn.set_name("add-fav-button")
         add_btn.set_size_request(btn_size, btn_size)
         add_btn.set_relief(Gtk.ReliefStyle.NONE)
 
-        # Icono +
+        # Icono + centrado perfectamente con color verde
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.set_halign(Gtk.Align.CENTER)
+        box.set_valign(Gtk.Align.CENTER)
+
         label = Gtk.Label()
-        label.set_markup('<span font="14" weight="bold" foreground="white">+</span>')
-        add_btn.add(label)
+        label.set_markup('<span font="13" weight="bold" foreground="#78DC78">+</span>')
+        label.set_halign(Gtk.Align.CENTER)
+        label.set_valign(Gtk.Align.CENTER)
+
+        box.pack_start(label, True, True, 0)
+        add_btn.add(box)
 
         add_btn.connect('clicked', self.on_add_folder_clicked)
         add_btn.set_tooltip_text("Añadir carpeta favorita")
@@ -333,7 +360,10 @@ class FloatingButtonApp:
 
         # Posicionar inicialmente (se actualizará en update_favorite_positions)
         add_window.show_all()
-        self.set_widget_opacity(add_window, 0.0)  # Inicia oculto
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            add_window.set_opacity(0.0)  # Inicia oculto
 
     def create_favorite_buttons(self, overlay):
         """Crear botones para las carpetas favoritas"""
@@ -360,8 +390,9 @@ class FloatingButtonApp:
         fav_window.set_skip_pager_hint(True)
         fav_window.set_accept_focus(False)
         fav_window.set_app_paintable(True)
+        fav_window.set_name("fav-button-window")
 
-        # Tamaño pequeño
+        # Tamaño
         btn_size = 28
         fav_window.set_default_size(btn_size, btn_size)
         fav_window.set_resizable(False)
@@ -374,17 +405,27 @@ class FloatingButtonApp:
 
         fav_window.connect('draw', self.on_draw)
 
-        # Crear botón
+        # Crear botón con clase CSS
         fav_btn = Gtk.Button()
+        fav_btn.set_name("fav-button")
         fav_btn.set_size_request(btn_size, btn_size)
         fav_btn.set_relief(Gtk.ReliefStyle.NONE)
 
-        # Icono de carpeta con inicial
+        # Icono de carpeta con inicial centrado perfectamente
         folder_name = os.path.basename(folder_path)
         initial = folder_name[0].upper() if folder_name else "F"
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.set_halign(Gtk.Align.CENTER)
+        box.set_valign(Gtk.Align.CENTER)
+
         label = Gtk.Label()
         label.set_markup(f'<span font="12" weight="bold" foreground="white">{initial}</span>')
-        fav_btn.add(label)
+        label.set_halign(Gtk.Align.CENTER)
+        label.set_valign(Gtk.Align.CENTER)
+
+        box.pack_start(label, True, True, 0)
+        fav_btn.add(box)
 
         # Conectar eventos
         fav_btn.connect('clicked', lambda b: self.on_favorite_clicked(folder_path))
@@ -405,7 +446,10 @@ class FloatingButtonApp:
         self.favorite_buttons.append(fav_data)
 
         fav_window.show_all()
-        self.set_widget_opacity(fav_window, 0.0)  # Inicia oculto
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            fav_window.set_opacity(0.0)  # Inicia oculto
 
     def apply_small_circular_shape(self, widget, size):
         """Aplicar forma circular a ventanas pequeñas"""
@@ -526,17 +570,14 @@ class FloatingButtonApp:
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
         css = f"""
-        window#floating-button {{
+        /* Ventana del widget principal */
+        #floating-button {{
             background-color: rgba(0, 0, 0, 0);
             background: transparent;
         }}
 
-        window {{
-            background-color: rgba(0, 0, 0, 0);
-            background: transparent;
-        }}
-
-        button {{
+        /* Botón principal */
+        #floating-button button {{
             border-radius: 18px;
             background: rgba({r}, {g}, {b}, 0.95);
             color: white;
@@ -547,39 +588,71 @@ class FloatingButtonApp:
             margin: 0;
         }}
 
-        button:hover {{
+        #floating-button button:hover {{
             background: rgba({r}, {g}, {b}, 1.0);
             box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
             border: 2px solid rgba(255, 255, 255, 0.4);
         }}
 
-        button:active {{
+        #floating-button button:active {{
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
             background: rgba({r}, {g}, {b}, 0.85);
         }}
 
-        /* Menus con efecto moderno */
-        menu {{
-            background: rgba(35, 35, 35, 0.98);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 4px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-        }}
-
-        menuitem {{
-            border-radius: 4px;
-            padding: 8px 12px;
-            color: white;
+        /* Botón + de añadir favoritos - Solo el símbolo sin fondo */
+        #add-fav-button {{
             background: transparent;
+            color: rgba(120, 220, 120, 1.0);
+            border: none;
+            box-shadow: none;
+            transition: all 0.2s ease;
+            padding: 0;
+            margin: 0;
         }}
 
-        menuitem:hover {{
-            background: rgba(255, 255, 255, 0.2);
+        #add-fav-button label {{
+            padding: 0;
+            margin: 0;
         }}
 
-        separator {{
-            background: rgba(255, 255, 255, 0.1);
+        #add-fav-button:hover {{
+            background: transparent;
+            color: rgba(140, 240, 140, 1.0);
+            border: none;
+            box-shadow: 0 0 8px rgba(120, 220, 120, 0.5);
+        }}
+
+        #add-fav-button:active {{
+            box-shadow: none;
+            background: transparent;
+            color: rgba(100, 200, 100, 1.0);
+        }}
+
+        /* Botones de carpetas favoritas */
+        #fav-button {{
+            border-radius: 14px;
+            background: rgba(30, 30, 35, 0.85);
+            color: white;
+            border: none;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+            transition: all 0.2s ease;
+            padding: 0;
+            margin: 0;
+        }}
+
+        #fav-button label {{
+            padding: 0;
+            margin: 0;
+        }}
+
+        #fav-button:hover {{
+            background: rgba(40, 40, 45, 0.95);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+        }}
+
+        #fav-button:active {{
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+            background: rgba(25, 25, 30, 0.9);
         }}
         """.encode('utf-8')
 
@@ -633,7 +706,9 @@ class FloatingButtonApp:
         """Check if Nautilus window is currently focused and has valid directory"""
         # Si está configurado para mostrar siempre, mantener visible
         if self.config.get('always_visible', False):
+            print(f"DEBUG: always_visible=True, opacity actual={self.window_opacity}")
             if not self.is_nautilus_focused or self.window_opacity < 1.0:
+                print("DEBUG: Llamando a fade_in()")
                 self.is_nautilus_focused = True
                 self.fade_in()
             return True
@@ -693,15 +768,12 @@ class FloatingButtonApp:
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
 
+        # Actualizar posiciones de botones secundarios antes de mostrar
+        self.update_favorite_positions()
+
         # Mostrar inmediatamente sin animación
         self.window_opacity = 1.0
         self.set_window_opacity(1.0)
-
-        # También aplicar a botones favoritos y botón de añadir
-        if self.add_button:
-            self.set_widget_opacity(self.add_button['window'], 1.0)
-        for fav in self.favorite_buttons:
-            self.set_widget_opacity(fav['window'], 1.0)
 
     def fade_out(self):
         """Smoothly fade out the button"""
@@ -711,12 +783,6 @@ class FloatingButtonApp:
         # Ocultar inmediatamente sin animación
         self.window_opacity = 0.0
         self.set_window_opacity(0.0)
-
-        # También aplicar a botones favoritos y botón de añadir
-        if self.add_button:
-            self.set_widget_opacity(self.add_button['window'], 0.0)
-        for fav in self.favorite_buttons:
-            self.set_widget_opacity(fav['window'], 0.0)
 
     def on_button_right_click(self, widget, event):
         """Show context menu on right click"""

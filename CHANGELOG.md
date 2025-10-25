@@ -5,6 +5,35 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.1.0] - 2025-01-XX
+
+### ✨ Añadido
+
+#### Carpetas Favoritas
+- **Botón "+" flotante**: Símbolo verde sin fondo para añadir carpetas favoritas
+- **Botones de favoritos**: Círculos oscuros semi-transparentes con iniciales blancas
+- **Diseño minimalista**: UI limpia y elegante con efectos de hover
+- **Acceso rápido**: Click en favoritos para abrir carpetas directamente en VSCode
+- **Gestión fácil**: Click derecho para eliminar favoritos
+
+### ⚡ Mejorado
+
+#### Interfaz de Usuario - Favoritos
+- **Centrado perfecto**: Labels centrados con Gtk.Box para alineación precisa
+- **Tamaños optimizados**: Botón "+" de 24px, favoritos de 28px
+- **Botón "+" sin fondo**: Símbolo verde (#78DC78) flotante y minimalista, sin círculo
+- **Favoritos oscuros**: Círculos semi-transparentes (rgba(30, 30, 35, 0.85))
+- **Hover mejorado**: Resplandor verde suave en el "+" al pasar el mouse
+
+### 🐛 Corregido
+
+#### Problemas Visuales
+- **Advertencias de deprecación**: Suprimidas advertencias de `Gtk.Window.set_opacity`
+- **Centrado de texto**: Corregido centrado de símbolos "+" e iniciales en círculos
+- **CSS global**: Solucionado problema de CSS afectando otras aplicaciones (Nautilus)
+
+---
+
 ## [3.0.0] - 2025-01-XX
 
 ### ✨ Añadido
