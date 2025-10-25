@@ -32,6 +32,7 @@ class FloatingButtonApp:
 
         # Create floating button window
         self.window = Gtk.Window()
+        self.window.set_name("floating-button")
         self.window.set_title("VSCode Opener")
         self.window.set_decorated(False)
         self.window.set_keep_above(True)
@@ -274,35 +275,55 @@ class FloatingButtonApp:
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
         css = f"""
-        * {{
-            background-color: transparent;
-        }}
-
-        window {{
+        window#floating-button {{
             background-color: rgba(0, 0, 0, 0);
             background: transparent;
         }}
 
         button {{
             border-radius: 18px;
-            background: rgba({r}, {g}, {b}, 0.75);
+            background: rgba({r}, {g}, {b}, 0.95);
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
             transition: all 0.2s ease;
             padding: 0;
             margin: 0;
         }}
 
         button:hover {{
-            background: rgba({r}, {g}, {b}, 0.9);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba({r}, {g}, {b}, 1.0);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+            border: 2px solid rgba(255, 255, 255, 0.4);
         }}
 
         button:active {{
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-            background: rgba({r}, {g}, {b}, 0.65);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            background: rgba({r}, {g}, {b}, 0.85);
+        }}
+
+        /* Menus con efecto moderno */
+        menu {{
+            background: rgba(35, 35, 35, 0.98);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 4px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }}
+
+        menuitem {{
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: white;
+            background: transparent;
+        }}
+
+        menuitem:hover {{
+            background: rgba(255, 255, 255, 0.2);
+        }}
+
+        separator {{
+            background: rgba(255, 255, 255, 0.1);
         }}
         """.encode('utf-8')
 
@@ -1090,6 +1111,9 @@ class SettingsDialog:
         self.dialog.set_default_size(400, 300)
         self.dialog.set_border_width(10)
 
+        # Apply blur effect to settings dialog
+        self.apply_dialog_styles()
+
         # Add buttons
         self.dialog.add_button("Cancelar", Gtk.ResponseType.CANCEL)
         self.dialog.add_button("Guardar", Gtk.ResponseType.OK)
@@ -1196,6 +1220,77 @@ class SettingsDialog:
             self.save_settings()
 
         self.dialog.destroy()
+
+    def apply_dialog_styles(self):
+        """Apply modern styles with blur to dialog"""
+        css_provider = Gtk.CssProvider()
+
+        css = """
+        dialog {
+            background: rgba(50, 50, 55, 0.98);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        dialog headerbar {
+            background: rgba(60, 60, 65, 0.98);
+            border-radius: 12px 12px 0 0;
+            color: white;
+        }
+
+        dialog headerbar label {
+            color: white;
+        }
+
+        dialog box {
+            background: transparent;
+        }
+
+        dialog entry {
+            border-radius: 6px;
+            padding: 8px;
+            background: rgba(70, 70, 75, 0.9);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        dialog entry:focus {
+            border: 1px solid rgba(100, 150, 255, 0.6);
+            box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.2);
+            background: rgba(80, 80, 85, 0.95);
+        }
+
+        dialog button {
+            border-radius: 6px;
+            padding: 8px 16px;
+            background: rgba(70, 70, 75, 0.9);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        dialog button:hover {
+            background: rgba(90, 90, 95, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        dialog label {
+            color: #ffffff;
+        }
+
+        dialog switch {
+            background: rgba(70, 70, 75, 0.9);
+        }
+
+        dialog switch:checked {
+            background: rgba(100, 150, 255, 0.8);
+        }
+        """.encode('utf-8')
+
+        css_provider.load_from_data(css)
+
+        style_context = self.dialog.get_style_context()
+        style_context.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def save_settings(self):
         """Save settings and apply changes"""
