@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Uninstallation script for Floating VSCode Opener
+# Uninstallation script for Floating VSCode Widget
 
 set -e
 
 echo "========================================="
-echo "Floating VSCode Opener - Desinstalador"
+echo "Floating VSCode Widget - Desinstalador"
 echo "========================================="
 echo ""
 
@@ -15,24 +15,24 @@ NC='\033[0m' # No Color
 
 # Stop the application
 echo "Deteniendo la aplicación..."
-pkill -f "floating_button.py" 2>/dev/null && echo -e "${GREEN}Aplicación detenida${NC}" || echo "La aplicación no estaba en ejecución"
+pkill -f "nautilus-vscode-widget.py" 2>/dev/null && echo -e "${GREEN}Aplicación detenida${NC}" || echo "La aplicación no estaba en ejecución"
 
 # Remove desktop entry
-DESKTOP_FILE="$HOME/.local/share/applications/vscode-opener.desktop"
+DESKTOP_FILE="$HOME/.local/share/applications/vscode-widget.desktop"
 if [ -f "$DESKTOP_FILE" ]; then
     rm "$DESKTOP_FILE"
     echo -e "${GREEN}Archivo desktop eliminado${NC}"
 fi
 
 # Remove autostart entry
-AUTOSTART_FILE="$HOME/.config/autostart/vscode-opener.desktop"
+AUTOSTART_FILE="$HOME/.config/autostart/vscode-widget.desktop"
 if [ -f "$AUTOSTART_FILE" ]; then
     rm "$AUTOSTART_FILE"
     echo -e "${GREEN}Inicio automático deshabilitado${NC}"
 fi
 
 # Remove config directory
-CONFIG_DIR="$HOME/.config/nautilus-vscode-opener"
+CONFIG_DIR="$HOME/.config/nautilus-vscode-widget"
 if [ -d "$CONFIG_DIR" ]; then
     echo -e "${YELLOW}¿Deseas eliminar la configuración? (s/n)${NC}"
     read -r response

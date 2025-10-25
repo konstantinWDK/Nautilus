@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script para crear paquete .deb de Nautilus VSCode Opener
+# Script para crear paquete .deb de Nautilus VSCode Widget
 
 set -e
 
@@ -11,7 +11,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     Nautilus VSCode Opener - Generador de Paquete .deb       ║${NC}"
+echo -e "${BLUE}║     Nautilus VSCode Widget - Generador de Paquete .deb       ║${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -20,8 +20,8 @@ PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 DEBIAN_DIR="$SCRIPT_DIR/debian"
 
 # Verificar que existe el programa
-if [ ! -f "$PROJECT_DIR/nautilus-vscode-opener.py" ]; then
-    echo -e "${RED}Error: No se encuentra nautilus-vscode-opener.py${NC}"
+if [ ! -f "$PROJECT_DIR/nautilus-vscode-widget.py" ]; then
+    echo -e "${RED}Error: No se encuentra nautilus-vscode-widget.py${NC}"
     exit 1
 fi
 
@@ -34,32 +34,32 @@ rm -f "$PROJECT_DIR"/dist/*.deb 2>/dev/null || true
 # Crear estructura de directorios
 echo -e "${CYAN}Creando estructura de directorios...${NC}"
 mkdir -p "$DEBIAN_DIR/usr/bin"
-mkdir -p "$DEBIAN_DIR/usr/share/nautilus-vscode-opener"
+mkdir -p "$DEBIAN_DIR/usr/share/nautilus-vscode-widget"
 mkdir -p "$DEBIAN_DIR/usr/share/applications"
-mkdir -p "$DEBIAN_DIR/usr/share/doc/nautilus-vscode-opener"
+mkdir -p "$DEBIAN_DIR/usr/share/doc/nautilus-vscode-widget"
 
 # Copiar el programa
 echo -e "${CYAN}Copiando archivos del programa...${NC}"
-cp "$PROJECT_DIR/nautilus-vscode-opener.py" "$DEBIAN_DIR/usr/share/nautilus-vscode-opener/"
-chmod +x "$DEBIAN_DIR/usr/share/nautilus-vscode-opener/nautilus-vscode-opener.py"
+cp "$PROJECT_DIR/nautilus-vscode-widget.py" "$DEBIAN_DIR/usr/share/nautilus-vscode-widget/"
+chmod +x "$DEBIAN_DIR/usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py"
 
 # Crear script lanzador en /usr/bin
-cat > "$DEBIAN_DIR/usr/bin/nautilus-vscode-opener" << 'EOF'
+cat > "$DEBIAN_DIR/usr/bin/nautilus-vscode-widget" << 'EOF'
 #!/bin/bash
-# Lanzador de Nautilus VSCode Opener
-cd /usr/share/nautilus-vscode-opener
-python3 /usr/share/nautilus-vscode-opener/nautilus-vscode-opener.py &
+# Lanzador de Nautilus VSCode Widget
+cd /usr/share/nautilus-vscode-widget
+python3 /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py &
 EOF
 
-chmod +x "$DEBIAN_DIR/usr/bin/nautilus-vscode-opener"
+chmod +x "$DEBIAN_DIR/usr/bin/nautilus-vscode-widget"
 
 # Crear archivo .desktop
-cat > "$DEBIAN_DIR/usr/share/applications/nautilus-vscode-opener.desktop" << 'EOF'
+cat > "$DEBIAN_DIR/usr/share/applications/nautilus-vscode-widget.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=Nautilus VSCode Opener
+Name=Nautilus VSCode Widget
 Comment=Open Nautilus folders in VSCode
-Exec=nautilus-vscode-opener
+Exec=nautilus-vscode-widget
 Icon=com.visualstudio.code
 Terminal=false
 Categories=Utility;Development;GNOME;GTK;
@@ -68,7 +68,7 @@ StartupNotify=false
 EOF
 
 # Crear copyright
-cat > "$DEBIAN_DIR/usr/share/doc/nautilus-vscode-opener/copyright" << 'EOF'
+cat > "$DEBIAN_DIR/usr/share/doc/nautilus-vscode-widget/copyright" << 'EOF'
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: nautilus-vscode-widget
 Source: https://github.com/konstantinWDK/nautilus-vscode-widget
@@ -97,7 +97,7 @@ EOF
 
 # Leer versión del archivo control
 VERSION=$(grep "^Version:" "$DEBIAN_DIR/DEBIAN/control" | cut -d' ' -f2)
-PACKAGE_NAME="nautilus-vscode-opener_${VERSION}_all.deb"
+PACKAGE_NAME="nautilus-vscode-widget_${VERSION}_all.deb"
 
 # Construir el paquete
 echo -e "${CYAN}Construyendo paquete .deb...${NC}"
@@ -133,7 +133,7 @@ if [ -f "dist/$PACKAGE_NAME" ]; then
     echo ""
     echo -e "${YELLOW}  PARA DESINSTALAR:${NC}"
     echo ""
-    echo -e "  ${CYAN}sudo apt remove nautilus-vscode-opener${NC}"
+    echo -e "  ${CYAN}sudo apt remove nautilus-vscode-widget${NC}"
     echo ""
     echo -e "${GREEN}¡Listo para distribuir!${NC}"
     echo ""

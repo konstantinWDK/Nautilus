@@ -18,7 +18,7 @@ import json
 
 class FloatingButtonApp:
     def __init__(self):
-        self.config_file = os.path.expanduser('~/.config/nautilus-vscode-opener/config.json')
+        self.config_file = os.path.expanduser('~/.config/nautilus-vscode-widget/config.json')
         self.load_config()
 
         # Initialize variables FIRST
@@ -35,7 +35,7 @@ class FloatingButtonApp:
         # Create floating button window
         self.window = Gtk.Window()
         self.window.set_name("floating-button")
-        self.window.set_title("VSCode Opener")
+        self.window.set_title("VSCode Widget")
         self.window.set_decorated(False)
         self.window.set_keep_above(True)
         self.window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
@@ -1406,7 +1406,7 @@ class SettingsDialog:
         self.app = parent_app
 
         self.dialog = Gtk.Dialog(
-            title="Configuración - VSCode Opener",
+            title="Configuración - VSCode Widget",
             parent=None,
             flags=0
         )
@@ -1643,12 +1643,12 @@ class SettingsDialog:
             if not os.path.exists(autostart_dir):
                 os.makedirs(autostart_dir)
 
-            desktop_file = os.path.join(autostart_dir, 'nautilus-vscode-opener.desktop')
+            desktop_file = os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
             script_path = os.path.abspath(__file__)
 
             desktop_content = f"""[Desktop Entry]
 Type=Application
-Name=Nautilus VSCode Opener
+Name=Nautilus VSCode Widget
 Comment=Floating button to open folders in VSCode from Nautilus
 Exec=python3 "{script_path}"
 Icon=com.visualstudio.code
@@ -1673,7 +1673,7 @@ StartupNotify=false
     def disable_autostart(self):
         """Disable autostart by removing .desktop file"""
         try:
-            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-opener.desktop')
+            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-widget.desktop')
             if os.path.exists(desktop_file):
                 os.remove(desktop_file)
                 print("Autostart deshabilitado")

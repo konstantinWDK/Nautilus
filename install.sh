@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# Script de instalación para Nautilus VSCode Opener
+# Script de instalación para Nautilus VSCode Widget
 # Este script crea un acceso directo en el menú de aplicaciones
 
 echo "====================================================="
-echo "  Instalación de Nautilus VSCode Opener v2.0"
+echo "  Instalación de Nautilus VSCode Widget v2.0"
 echo "====================================================="
 echo ""
 
 # Obtener la ruta del script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-FLOATING_BUTTON_PATH="$SCRIPT_DIR/floating_button.py"
+FLOATING_BUTTON_PATH="$SCRIPT_DIR/nautilus-vscode-widget.py"
 
 # Verificar que el archivo existe
 if [ ! -f "$FLOATING_BUTTON_PATH" ]; then
-    echo "❌ Error: No se encuentra floating_button.py"
+    echo "❌ Error: No se encuentra nautilus-vscode-widget.py"
     exit 1
 fi
 
@@ -23,12 +23,12 @@ APPLICATIONS_DIR="$HOME/.local/share/applications"
 mkdir -p "$APPLICATIONS_DIR"
 
 # Crear archivo .desktop
-DESKTOP_FILE="$APPLICATIONS_DIR/nautilus-vscode-opener.desktop"
+DESKTOP_FILE="$APPLICATIONS_DIR/nautilus-vscode-widget.desktop"
 
 cat > "$DESKTOP_FILE" << INNEREOF
 [Desktop Entry]
 Type=Application
-Name=Nautilus VSCode Opener
+Name=Nautilus VSCode Widget
 Comment=Botón flotante ultra-compacto para abrir carpetas en VSCode
 Exec=python3 "$FLOATING_BUTTON_PATH"
 Icon=com.visualstudio.code
@@ -45,7 +45,7 @@ chmod +x "$FLOATING_BUTTON_PATH"
 echo "✅ Instalación completada!"
 echo ""
 echo "Ahora puedes:"
-echo "  1. Buscar 'Nautilus VSCode Opener' en el menú de aplicaciones"
+echo "  1. Buscar 'Nautilus VSCode Widget' en el menú de aplicaciones"
 echo "  2. Ejecutar: python3 $FLOATING_BUTTON_PATH"
 echo "  3. Configurar inicio automático desde las opciones del botón"
 echo ""

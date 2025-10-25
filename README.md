@@ -1,4 +1,4 @@
-# Nautilus VSCode Opener - Botón Flotante Inteligente
+# Nautilus VSCode Widget - Botón Flotante Inteligente
 
 Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus directamente en VSCode con un solo click. Aparece solo cuando lo necesitas.
 
@@ -39,7 +39,7 @@ Si tienes el archivo `.deb` en la carpeta `dist/`:
 
 ```bash
 # Instalar desde el archivo .deb
-sudo dpkg -i dist/nautilus-vscode-opener_3.0.0_all.deb
+sudo dpkg -i dist/nautilus-vscode-widget_3.0.0_all.deb
 ```
 
 El programa se instalará automáticamente y estará disponible en tu menú de aplicaciones.
@@ -47,7 +47,7 @@ El programa se instalará automáticamente y estará disponible en tu menú de a
 ## 📖 Uso
 
 ### Método 1: Desde el menú de aplicaciones
-1. Busca "Nautilus VSCode Opener" en tu menú de aplicaciones
+1. Busca "Nautilus VSCode Widget" en tu menú de aplicaciones
 2. Haz click para iniciar el botón flotante
 3. El botón aparecerá **solo cuando Nautilus esté en foco**
 
@@ -107,12 +107,12 @@ El programa usa múltiples métodos para detectar la carpeta activa:
 
 El programa guarda su configuración en:
 ```
-~/.config/nautilus-vscode-opener/config.json
+~/.config/nautilus-vscode-widget/config.json
 ```
 
 Archivo de autostart (si está habilitado):
 ```
-~/.config/autostart/nautilus-vscode-opener.desktop
+~/.config/autostart/nautilus-vscode-widget.desktop
 ```
 
 ## 🔧 Requisitos

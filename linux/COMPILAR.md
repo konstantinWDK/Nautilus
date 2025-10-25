@@ -1,4 +1,4 @@
-# Nautilus VSCode Opener - Crear Paquete .deb
+# Nautilus VSCode Widget - Crear Paquete .deb
 
 ## Crear Paquete para Distribuir
 
@@ -7,7 +7,7 @@ cd linux
 make build
 ```
 
-Esto genera: `nautilus-vscode-opener_1.0.0_all.deb` (**15-20 KB**)
+Esto genera: `nautilus-vscode-widget_1.0.0_all.deb` (**15-20 KB**)
 
 ## Ventajas del Paquete .deb
 
@@ -26,15 +26,15 @@ El usuario solo necesita:
 
 2. **Instalar**:
    - Doble clic en el archivo `.deb`
-   - O por terminal: `sudo dpkg -i nautilus-vscode-opener_1.0.0_all.deb`
+   - O por terminal: `sudo dpkg -i nautilus-vscode-widget_1.0.0_all.deb`
 
 3. **Usar**:
    - El programa se inicia automáticamente
-   - O ejecutar: `nautilus-vscode-opener`
+   - O ejecutar: `nautilus-vscode-widget`
 
 4. **Desinstalar**:
    ```bash
-   sudo apt remove nautilus-vscode-opener
+   sudo apt remove nautilus-vscode-widget
    ```
 
 ## Comandos Disponibles

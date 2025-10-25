@@ -1,9 +1,9 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: nautilus-vscode-opener
-Source: https://github.com/tu-usuario/nautilus-vscode-opener
+Upstream-Name: nautilus-vscode-widget
+Source: https://github.com/konstantinWDK/nautilus-vscode-widget
 
 Files: *
-Copyright: 2025 Tu Nombre
+Copyright: 2025 Konstantin Koshkarev
 License: MIT
  Permission is hereby granted, free of charge, to any person obtaining a
  copy of this software and associated documentation files (the "Software"),

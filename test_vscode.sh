@@ -22,7 +22,7 @@ echo "✓ Versión: $(code --version | head -n 1)"
 echo ""
 
 # Crear carpeta de prueba
-TEST_DIR="/tmp/test_vscode_opener"
+TEST_DIR="/tmp/test_vscode_widget"
 mkdir -p "$TEST_DIR"
 echo "📁 Carpeta de prueba creada: $TEST_DIR"
 echo ""

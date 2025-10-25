@@ -1,4 +1,4 @@
-# Nautilus VSCode Opener - Paquete .deb
+# Nautilus VSCode Widget - Paquete .deb
 
 Sistema de empaquetado profesional para Ubuntu/Debian.
 
@@ -10,7 +10,7 @@ Sistema de empaquetado profesional para Ubuntu/Debian.
 make build
 ```
 
-Esto genera: `nautilus-vscode-opener_1.0.0_all.deb` (~15-20 KB)
+Esto genera: `nautilus-vscode-widget_1.0.0_all.deb` (~15-20 KB)
 
 ### Instalar localmente
 
@@ -21,7 +21,7 @@ make install
 O manualmente:
 
 ```bash
-sudo dpkg -i nautilus-vscode-opener_1.0.0_all.deb
+sudo dpkg -i nautilus-vscode-widget_1.0.0_all.deb
 ```
 
 ### Limpiar archivos
@@ -43,7 +43,7 @@ make clean
 **Opción 2: Terminal**
 
 ```bash
-sudo dpkg -i nautilus-vscode-opener_1.0.0_all.deb
+sudo dpkg -i nautilus-vscode-widget_1.0.0_all.deb
 ```
 
 Si faltan dependencias:
@@ -59,13 +59,13 @@ El programa se inicia automáticamente con tu sesión.
 O inicia manualmente:
 
 ```bash
-nautilus-vscode-opener
+nautilus-vscode-widget
 ```
 
 ### Desinstalación
 
 ```bash
-sudo apt remove nautilus-vscode-opener
+sudo apt remove nautilus-vscode-widget
 ```
 
 ## Características del Paquete .deb
@@ -91,31 +91,31 @@ El paquete .deb especifica estas dependencias (se instalan automáticamente):
 ## Estructura del Paquete
 
 ```
-nautilus-vscode-opener_1.0.0_all.deb
+nautilus-vscode-widget_1.0.0_all.deb
 ├── DEBIAN/
 │   ├── control       # Metadatos del paquete
 │   ├── postinst      # Script post-instalación
 │   └── prerm         # Script pre-eliminación
 ├── usr/
 │   ├── bin/
-│   │   └── nautilus-vscode-opener  # Lanzador
+│   │   └── nautilus-vscode-widget  # Lanzador
 │   ├── share/
-│   │   ├── nautilus-vscode-opener/
-│   │   │   └── nautilus-vscode-opener.py  # Programa
+│   │   ├── nautilus-vscode-widget/
+│   │   │   └── nautilus-vscode-widget.py  # Programa
 │   │   ├── applications/
-│   │   │   └── nautilus-vscode-opener.desktop
+│   │   │   └── nautilus-vscode-widget.desktop
 │   │   └── doc/
-│   │       └── nautilus-vscode-opener/
+│   │       └── nautilus-vscode-widget/
 │   │           └── copyright
 ```
 
 ## Ubicaciones Después de Instalar
 
-- **Programa**: `/usr/share/nautilus-vscode-opener/`
-- **Ejecutable**: `/usr/bin/nautilus-vscode-opener`
+- **Programa**: `/usr/share/nautilus-vscode-widget/`
+- **Ejecutable**: `/usr/bin/nautilus-vscode-widget`
 - **Desktop**: `/usr/share/applications/`
-- **Autostart**: `~/.config/autostart/nautilus-vscode-opener.desktop` (creado automáticamente)
-- **Configuración**: `~/.config/nautilus-vscode-opener/config.json`
+- **Autostart**: `~/.config/autostart/nautilus-vscode-widget.desktop` (creado automáticamente)
+- **Configuración**: `~/.config/nautilus-vscode-widget/config.json`
 
 ## Distribución
 
@@ -123,8 +123,8 @@ nautilus-vscode-opener_1.0.0_all.deb
 
 ```bash
 gh release create v1.0.0 \
-  nautilus-vscode-opener_1.0.0_all.deb \
-  --title "Nautilus VSCode Opener v1.0.0" \
+  nautilus-vscode-widget_1.0.0_all.deb \
+  --title "Nautilus VSCode Widget v1.0.0" \
   --notes "Paquete .deb para Ubuntu/Debian"
 ```
 

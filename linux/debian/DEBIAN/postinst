@@ -1,9 +1,9 @@
 #!/bin/bash
-# Script post-instalación para nautilus-vscode-opener
+# Script post-instalación para nautilus-vscode-widget
 
 set -e
 
-echo "Configurando Nautilus VSCode Opener..."
+echo "Configurando Nautilus VSCode Widget..."
 
 # Crear directorio de configuración para cada usuario
 for user_home in /home/*; do
@@ -15,12 +15,12 @@ for user_home in /home/*; do
         mkdir -p "$autostart_dir"
 
         # Crear archivo .desktop para autostart
-        cat > "$autostart_dir/nautilus-vscode-opener.desktop" << 'EOF'
+        cat > "$autostart_dir/nautilus-vscode-widget.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
-Name=Nautilus VSCode Opener
+Name=Nautilus VSCode Widget
 Comment=Floating button to open folders in VSCode from Nautilus
-Exec=/usr/bin/nautilus-vscode-opener
+Exec=/usr/bin/nautilus-vscode-widget
 Icon=com.visualstudio.code
 Terminal=false
 Hidden=false
@@ -30,13 +30,13 @@ StartupNotify=false
 EOF
 
         # Establecer permisos correctos
-        chown "$username:$username" "$autostart_dir/nautilus-vscode-opener.desktop" 2>/dev/null || true
-        chmod +x "$autostart_dir/nautilus-vscode-opener.desktop" 2>/dev/null || true
+        chown "$username:$username" "$autostart_dir/nautilus-vscode-widget.desktop" 2>/dev/null || true
+        chmod +x "$autostart_dir/nautilus-vscode-widget.desktop" 2>/dev/null || true
     fi
 done
 
-echo "Nautilus VSCode Opener instalado correctamente."
+echo "Nautilus VSCode Widget instalado correctamente."
 echo "El programa se iniciará automáticamente en el próximo inicio de sesión."
-echo "O puedes iniciarlo manualmente con: nautilus-vscode-opener"
+echo "O puedes iniciarlo manualmente con: nautilus-vscode-widget"
 
 exit 0

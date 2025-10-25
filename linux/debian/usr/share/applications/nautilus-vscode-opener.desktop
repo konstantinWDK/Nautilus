@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Nautilus VSCode Opener
+Name=Nautilus VSCode Widget
 Comment=Open Nautilus folders in VSCode
-Exec=nautilus-vscode-opener
+Exec=nautilus-vscode-widget
 Icon=com.visualstudio.code
 Terminal=false
 Categories=Utility;Development;GNOME;GTK;
