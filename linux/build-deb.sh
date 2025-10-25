@@ -70,8 +70,8 @@ EOF
 # Crear copyright
 cat > "$DEBIAN_DIR/usr/share/doc/nautilus-vscode-opener/copyright" << 'EOF'
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: nautilus-vscode-opener
-Source: https://github.com/tu-usuario/nautilus-vscode-opener
+Upstream-Name: nautilus-vscode-widget
+Source: https://github.com/konstantinWDK/nautilus-vscode-widget
 
 Files: *
 Copyright: 2025 Tu Nombre
