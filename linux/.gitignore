@@ -1,0 +1,14 @@
+# Build directories
+build/
+dist/
+
+# PyInstaller
+*.spec.bak
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log

@@ -6,7 +6,7 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-/linux
+
 # Temporarily allowing dist/ for .deb distribution
 # dist/
 downloads/

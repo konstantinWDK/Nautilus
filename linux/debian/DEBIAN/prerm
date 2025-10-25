@@ -1,0 +1,24 @@
+#!/bin/bash
+# Script pre-eliminación para nautilus-vscode-opener
+
+set -e
+
+echo "Desinstalando Nautilus VSCode Opener..."
+
+# Detener el programa si está corriendo
+pkill -f "nautilus-vscode-opener" 2>/dev/null || true
+pkill -f "nautilus-vscode-opener.py" 2>/dev/null || true
+
+# Eliminar archivos autostart para cada usuario
+for user_home in /home/*; do
+    if [ -d "$user_home" ]; then
+        autostart_file="$user_home/.config/autostart/nautilus-vscode-opener.desktop"
+        if [ -f "$autostart_file" ]; then
+            rm -f "$autostart_file"
+        fi
+    fi
+done
+
+echo "Nautilus VSCode Opener desinstalado."
+
+exit 0

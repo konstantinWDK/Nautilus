@@ -1,0 +1,4 @@
+#!/bin/bash
+# Lanzador de Nautilus VSCode Opener
+cd /usr/share/nautilus-vscode-opener
+python3 /usr/share/nautilus-vscode-opener/nautilus-vscode-opener.py &
