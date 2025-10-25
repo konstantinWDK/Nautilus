@@ -92,21 +92,11 @@ class FloatingButtonApp:
 
         self.window.connect('destroy', Gtk.main_quit)
 
-        # Always show button initially - let the timer handle hiding/showing
-        print("Mostrando botón flotante...")
+        # Show window but start with opacity 0 - let the timer handle visibility
         self.window.show_all()
-        
-        # Check if Nautilus is running for initial state
-        check_nautilus = subprocess.run(
-            ['pgrep', '-x', 'nautilus'],
-            capture_output=True,
-            text=True
-        )
-        
-        if check_nautilus.returncode == 0:
-            print("Nautilus detectado en inicio")
-        else:
-            print("Nautilus no detectado en inicio - esperando...")
+        self.window.set_opacity(0.0)
+        self.window_opacity = 0.0
+        self.is_nautilus_focused = False
 
     def on_draw(self, widget, cr):
         """Draw transparent background"""
@@ -372,36 +362,54 @@ class FloatingButtonApp:
             self.window.move(x, y)
 
     def check_nautilus_focus(self):
-        """Check if Nautilus window is currently focused"""
+        """Check if Nautilus window is currently focused and has valid directory"""
         try:
-            # Get the currently active window class
-            result = subprocess.run(
-                ['xdotool', 'getactivewindow', 'getwindowclassname'],
+            # Get the active window ID first
+            window_id_result = subprocess.run(
+                ['xdotool', 'getactivewindow'],
                 capture_output=True,
                 text=True,
                 timeout=1
             )
 
-            if result.returncode == 0:
-                window_class = result.stdout.strip().lower()
-                nautilus_focused = 'nautilus' in window_class or 'org.gnome.nautilus' in window_class
+            if window_id_result.returncode != 0:
+                if self.is_nautilus_focused:
+                    self.is_nautilus_focused = False
+                    self.fade_out()
+                return True
+
+            window_id = window_id_result.stdout.strip()
+
+            # Get window class using xprop
+            class_result = subprocess.run(
+                ['xprop', '-id', window_id, 'WM_CLASS'],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+
+            if class_result.returncode == 0:
+                window_class = class_result.stdout.strip().lower()
+                nautilus_focused = 'nautilus' in window_class
+
+                # Check if we should show the button
+                has_directory = self.current_directory and os.path.exists(self.current_directory)
+                should_show = nautilus_focused and has_directory
 
                 # If focus state changed
-                if nautilus_focused != self.is_nautilus_focused:
-                    self.is_nautilus_focused = nautilus_focused
+                if should_show != self.is_nautilus_focused:
+                    self.is_nautilus_focused = should_show
 
-                    if nautilus_focused:
-                        # Nautilus is focused - fade in
+                    if should_show:
                         self.fade_in()
                     else:
-                        # Nautilus not focused - fade out
                         self.fade_out()
 
-        except Exception as e:
-            # If xdotool fails, keep button visible
-            if not self.is_nautilus_focused:
-                self.is_nautilus_focused = True
-                self.fade_in()
+        except Exception:
+            # If xdotool fails, hide button to be safe
+            if self.is_nautilus_focused:
+                self.is_nautilus_focused = False
+                self.fade_out()
 
         return True  # Continue timer
 
@@ -412,14 +420,14 @@ class FloatingButtonApp:
 
         def animate():
             if self.window_opacity < 1.0:
-                self.window_opacity = min(1.0, self.window_opacity + 0.1)
+                self.window_opacity = min(1.0, self.window_opacity + 0.2)  # Más rápido: 0.1 -> 0.2
                 self.window.set_opacity(self.window_opacity)
                 return True
             else:
                 self.fade_timer = None
                 return False
 
-        self.fade_timer = GLib.timeout_add(20, animate)
+        self.fade_timer = GLib.timeout_add(15, animate)  # Más rápido: 20ms -> 15ms
 
     def fade_out(self):
         """Smoothly fade out the button"""
@@ -428,14 +436,14 @@ class FloatingButtonApp:
 
         def animate():
             if self.window_opacity > 0.0:
-                self.window_opacity = max(0.0, self.window_opacity - 0.1)
+                self.window_opacity = max(0.0, self.window_opacity - 0.2)  # Más rápido: 0.1 -> 0.2
                 self.window.set_opacity(self.window_opacity)
                 return True
             else:
                 self.fade_timer = None
                 return False
 
-        self.fade_timer = GLib.timeout_add(20, animate)
+        self.fade_timer = GLib.timeout_add(15, animate)  # Más rápido: 20ms -> 15ms
 
     def on_button_right_click(self, widget, event):
         """Show context menu on right click"""
@@ -562,8 +570,6 @@ class FloatingButtonApp:
 
     def update_current_directory(self):
         """Update the current directory from active Nautilus window"""
-        nautilus_detected = False
-
         try:
             # Check if Nautilus is running
             check_nautilus = subprocess.run(
@@ -574,41 +580,32 @@ class FloatingButtonApp:
             )
 
             if check_nautilus.returncode != 0:
-                # Nautilus no está ejecutándose - pero mantener botón visible por ahora
-                print("Nautilus no está ejecutándose")
+                # Nautilus no está ejecutándose
                 self.current_directory = None
-                # No ocultar automáticamente - dejar que el usuario decida
+                self.update_tooltip()
                 return True
 
             # Múltiples métodos para detectar la carpeta activa
             directory = self.get_nautilus_directory_multiple_methods()
-            
-            if directory:
-                nautilus_detected = True
-                self.current_directory = directory
-                print(f"Directorio detectado: {directory}")
-                self.update_tooltip()
-                
-                # Show button if Nautilus is open
-                if not self.window.get_visible():
-                    print("Mostrando botón - directorio encontrado")
-                    self.window.show_all()
-            else:
-                # No Nautilus windows found or no valid directory
-                print("No se detectó directorio válido de Nautilus")
-                self.current_directory = None
-                # Mantener botón visible
 
-        except Exception as e:
-            print(f"Error detectando directorio: {e}")
-            # En caso de error, mantener el último directorio conocido
-            # No ocultar automáticamente
+            if directory:
+                if directory != self.current_directory:
+                    self.current_directory = directory
+                    self.update_tooltip()
+            else:
+                # No se detectó directorio válido
+                self.current_directory = None
+                self.update_tooltip()
+
+        except Exception:
+            self.current_directory = None
 
         return True  # Continue timer
 
     def get_nautilus_directory_multiple_methods(self):
         """Try multiple methods to get the current Nautilus directory"""
         methods = [
+            self.get_directory_from_dbus,  # Más confiable para Nautilus moderno
             self.get_directory_from_active_nautilus_window,
             self.get_directory_from_focused_nautilus,
             self.get_directory_from_nautilus_process,
@@ -617,7 +614,7 @@ class FloatingButtonApp:
             self.get_directory_from_active_window,
             self.get_directory_from_fallback
         ]
-        
+
         for method in methods:
             try:
                 directory = method()
@@ -625,9 +622,72 @@ class FloatingButtonApp:
                     return directory
             except Exception as e:
                 continue
-        
+
         return None
-    
+
+    def get_directory_from_dbus(self):
+        """Get directory from Nautilus via DBus - most reliable method"""
+        try:
+            # Get active Nautilus window ID first
+            result = subprocess.run(
+                ['xdotool', 'search', '--class', 'nautilus'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+
+            if result.returncode != 0 or not result.stdout.strip():
+                return None
+
+            # Get focused window
+            focused_result = subprocess.run(
+                ['xdotool', 'getwindowfocus'],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+
+            if focused_result.returncode != 0:
+                return None
+
+            focused_id = focused_result.stdout.strip()
+            window_ids = result.stdout.strip().split('\n')
+
+            # Check if focused window is Nautilus
+            if focused_id not in window_ids:
+                return None
+
+            # Use gdbus to get current location from Nautilus
+            dbus_result = subprocess.run(
+                ['gdbus', 'call', '--session',
+                 '--dest', 'org.gnome.Nautilus',
+                 '--object-path', '/org/gnome/Nautilus/window/1',
+                 '--method', 'org.freedesktop.DBus.Properties.Get',
+                 'org.gnome.Nautilus.Window', 'location'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+
+            if dbus_result.returncode == 0 and dbus_result.stdout:
+                # Parse the DBus output
+                output = dbus_result.stdout.strip()
+                # Format: (<'file:///path/to/directory'>,)
+                if 'file://' in output:
+                    from urllib.parse import unquote
+                    import re
+                    match = re.search(r"'(file://[^']+)'", output)
+                    if match:
+                        uri = match.group(1)
+                        path = unquote(uri.replace('file://', ''))
+                        if os.path.exists(path) and os.path.isdir(path):
+                            return path
+
+        except Exception:
+            pass
+
+        return None
+
     def get_directory_from_active_nautilus_window(self):
         """Get directory from the currently active/focused Nautilus window"""
         try:
@@ -654,19 +714,16 @@ class FloatingButtonApp:
                     title = title_result.stdout.strip()
                     # Check if this looks like a Nautilus window
                     is_nautilus = (
-                        'nautilus' in title.lower() or 
+                        'nautilus' in title.lower() or
                         title.startswith('/') or
                         any(folder in title.lower() for folder in ['documents', 'documentos', 'downloads', 'descargas', 'pictures', 'imágenes', 'music', 'música', 'videos', 'vídeos', 'desktop', 'escritorio']) or
                         len(title) > 3 and title not in ['✳ Carpeta problema']  # Exclude our own window titles
                     )
-                    
+
                 if is_nautilus:
-                    print(f"Ventana activa de Nautilus: '{title}'")
-                    
                     # Try to get directory from title
                     directory = self.extract_directory_from_title(title)
                     if directory:
-                        print(f"Directorio desde ventana activa: {directory}")
                         return directory
                     
                     # If title doesn't have path, try to get it from window properties
@@ -674,8 +731,8 @@ class FloatingButtonApp:
                     if directory:
                         return directory
             
-        except Exception as e:
-            print(f"Error detectando ventana activa: {e}")
+        except Exception:
+            pass
         
         return None
     
@@ -717,10 +774,8 @@ class FloatingButtonApp:
                             
                             if title_result.returncode == 0:
                                 title = title_result.stdout.strip()
-                                print(f"Nautilus enfocado: '{title}'")
                                 directory = self.extract_directory_from_title(title)
                                 if directory:
-                                    print(f"Directorio desde ventana enfocada: {directory}")
                                     return directory
                     
                     # If focused window is not Nautilus, get the most recently active Nautilus
@@ -746,11 +801,10 @@ class FloatingButtonApp:
                                     title = title_result.stdout.strip()
                                     directory = self.extract_directory_from_title(title)
                                     if directory:
-                                        print(f"Directorio desde Nautilus visible: {directory}")
                                         return directory
-            
-        except Exception as e:
-            print(f"Error detectando Nautilus enfocado: {e}")
+
+        except Exception:
+            pass
         
         return None
     
@@ -767,7 +821,6 @@ class FloatingButtonApp:
             
             if prop_result.returncode == 0:
                 output = prop_result.stdout
-                print(f"Propiedades de ventana: {output}")
                 
                 # Look for file paths in the properties
                 import re
@@ -785,8 +838,8 @@ class FloatingButtonApp:
                     if os.path.exists(path) and os.path.isdir(path):
                         return path
             
-        except Exception as e:
-            print(f"Error obteniendo propiedades: {e}")
+        except Exception:
+            pass
         
         return None
     
@@ -804,7 +857,6 @@ class FloatingButtonApp:
             if result.returncode == 0:
                 lines = result.stdout.strip().split('\n')
                 for line in lines:
-                    print(f"Proceso Nautilus: {line}")
                     # Look for file:// URLs in process arguments
                     if 'file://' in line:
                         import re
@@ -813,11 +865,10 @@ class FloatingButtonApp:
                             from urllib.parse import unquote
                             path = unquote(url)
                             if os.path.exists(path) and os.path.isdir(path):
-                                print(f"Directorio desde proceso: {path}")
                                 return path
-            
-        except Exception as e:
-            print(f"Error obteniendo info del proceso: {e}")
+
+        except Exception:
+            pass
         
         return None
     
@@ -846,16 +897,14 @@ class FloatingButtonApp:
                         
                         if name_result.returncode == 0:
                             title = name_result.stdout.strip()
-                            print(f"Título de ventana detectado: '{title}'")
-                            
+
                             # Try to extract directory from title
                             directory = self.extract_directory_from_title(title)
                             if directory:
-                                print(f"Directorio extraído: {directory}")
                                 return directory
-            
-        except Exception as e:
-            print(f"Error en xdotool: {e}")
+
+        except Exception:
+            pass
         
         return None
     
@@ -901,7 +950,6 @@ class FloatingButtonApp:
             # Try current working directory first
             cwd = os.getcwd()
             if os.path.exists(cwd) and os.path.isdir(cwd):
-                print(f"Usando directorio actual: {cwd}")
                 return cwd
             
             # Try common directories
@@ -916,11 +964,10 @@ class FloatingButtonApp:
             
             for directory in common_dirs:
                 if os.path.exists(directory) and os.path.isdir(directory):
-                    print(f"Usando directorio por defecto: {directory}")
                     return directory
-            
-        except Exception as e:
-            print(f"Error en fallback: {e}")
+
+        except Exception:
+            pass
         
         return None
 
@@ -928,11 +975,11 @@ class FloatingButtonApp:
         """Extract directory path from window title with improved logic"""
         if not title:
             return None
-            
+
         # Clean up the title
         original_title = title
         title = title.strip()
-        
+
         # Remove common prefixes and special characters
         prefixes_to_remove = ['Files', 'Archivos', 'File Manager', 'Gestor de archivos']
         for prefix in prefixes_to_remove:
@@ -940,11 +987,9 @@ class FloatingButtonApp:
                 title = title[len(prefix):].strip()
                 if title.startswith('-'):
                     title = title[1:].strip()
-        
+
         # Remove special characters like ✳ that Nautilus sometimes adds
         title = title.lstrip('✳ ').strip()
-        
-        print(f"Título limpio para búsqueda: '{title}'")
 
         # If it starts with /, it's likely a full path
         if title.startswith('/'):
@@ -977,7 +1022,6 @@ class FloatingButtonApp:
             
             # Special case for home folder
             if title.lower() in ['carpeta personal', 'home', 'personal folder']:
-                print(f"Detectada carpeta home: {home}")
                 return home
             
             # Check for exact matches
@@ -998,7 +1042,6 @@ class FloatingButtonApp:
             if '/' not in title:  # Only if it's a simple name
                 path = os.path.join(home, title)
                 if os.path.exists(path):
-                    print(f"Subcarpeta de home encontrada: {path}")
                     return path
             
             # Enhanced search for folder names
@@ -1007,7 +1050,6 @@ class FloatingButtonApp:
                 if found_path:
                     return found_path
 
-        print(f"No se pudo extraer directorio del título: '{original_title}'")
         return None
     
     def search_folder_by_name(self, folder_name):
@@ -1030,7 +1072,6 @@ class FloatingButtonApp:
                         if item.lower() == folder_name.lower():
                             full_path = os.path.join(base_dir, item)
                             if os.path.isdir(full_path):
-                                print(f"Carpeta encontrada: {full_path}")
                                 return full_path
                 except PermissionError:
                     continue
@@ -1041,9 +1082,8 @@ class FloatingButtonApp:
                 try:
                     found = self.recursive_folder_search(base_dir, folder_name, max_depth=2)
                     if found:
-                        print(f"Carpeta encontrada (recursiva): {found}")
                         return found
-                except Exception as e:
+                except Exception:
                     continue
         
         return None
