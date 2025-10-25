@@ -4,13 +4,13 @@ Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus 
 
 ## ✨ Características Principales
 
-- **Aparición Inteligente**: Solo se muestra cuando Nautilus está en foco
+- **Aparición Inteligente**: Solo se muestra cuando Nautilus está en foco (o siempre si lo prefieres)
+- **Carpetas Favoritas**: Añade y accede rápidamente a tus carpetas favoritas
 - **Transparencia Circular**: Diseño circular perfecto sin fondo cuadrado
 - **Ultra Compacto**: Solo **36x36 píxeles** de diseño minimalista
 - **Detección Avanzada**: Múltiples métodos (DBus, xdotool, wmctrl) para detectar carpetas
-- **Animación Rápida**: Aparece/desaparece en menos de 400ms
 - **Tema Oscuro Moderno**: Menús y diálogos con diseño elegante
-- **Totalmente Configurable**: Color del botón, comando del editor, y más
+- **Totalmente Configurable**: Color del botón, comando del editor, visibilidad y más
 - **Inicio Automático**: Opción para iniciar con el sistema
 - **Arrastrable**: Mueve el botón a cualquier posición de la pantalla
 
@@ -23,44 +23,69 @@ Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus 
 - **Sombras**: Efectos de sombra modernos para profundidad
 - **Tema oscuro**: Menús y diálogos con diseño oscuro elegante
 
-## 🚀 Instalación Rápida
+## 🚀 Instalación
 
-### Método 1: Script de instalación
+### Opción 1: Paquete .deb (Recomendado para Ubuntu/Debian)
+
+Descarga el archivo `.deb` desde [Releases](https://github.com/konstantinWDK/nautilus-vscode-widget/releases) e instálalo:
+
 ```bash
+sudo dpkg -i nautilus-vscode-widget_3.0.0_all.deb
+```
+
+O haz doble clic en el archivo `.deb` para instalarlo con el gestor de paquetes.
+
+### Opción 2: Desde el repositorio
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/konstantinWDK/nautilus-vscode-widget.git
+cd nautilus-vscode-widget
+
 # Ejecutar el script de instalación
 chmod +x install.sh
 ./install.sh
 ```
 
-Esto creará un acceso directo en tu menú de aplicaciones.
-
-### Método 2: Instalación desde archivo .deb
-Si tienes el archivo `.deb` en la carpeta `dist/`:
+### Opción 3: Compilar el paquete .deb
 
 ```bash
-# Instalar desde el archivo .deb
-sudo dpkg -i dist/nautilus-vscode-widget_3.0.0_all.deb
-```
+# Desde el repositorio clonado
+cd linux
+./build-deb.sh
 
-El programa se instalará automáticamente y estará disponible en tu menú de aplicaciones.
+# Instalar el paquete generado
+sudo dpkg -i ../dist/nautilus-vscode-widget_3.0.0_all.deb
+```
 
 ## 📖 Uso
 
-### Método 1: Desde el menú de aplicaciones
-1. Busca "Nautilus VSCode Widget" en tu menú de aplicaciones
-2. Haz click para iniciar el botón flotante
-3. El botón aparecerá **solo cuando Nautilus esté en foco**
+### Iniciar la aplicación
 
-### Método 2: Desde terminal
+**Método 1: Desde el menú de aplicaciones**
+1. Busca "Nautilus VSCode Widget" en tu menú de aplicaciones
+2. Haz click para iniciar
+
+**Método 2: Desde terminal**
 ```bash
-python3 floating_button.py
+# Si instalaste con .deb o install.sh
+nautilus-vscode-widget
+
+# O directamente desde el repositorio
+./run.sh
 ```
 
-### Interacción con el botón
+### Interacción con el widget
 
-- **Click izquierdo**: Abre la carpeta actual en VSCode
+**Botón principal:**
+- **Click izquierdo**: Abre la carpeta actual de Nautilus en VSCode
 - **Click derecho**: Muestra menú de configuración
 - **Arrastrar**: Mueve el botón a otra posición (mantén presionado y arrastra)
+
+**Carpetas favoritas:**
+- **Botón "+"**: Añade una carpeta favorita (aparece arriba del botón principal)
+- **Botones de carpetas**: Click para abrir directamente esa carpeta en VSCode
+- **Click derecho en favorito**: Eliminar de favoritos
 
 ## ⚙️ Configuración
 
@@ -70,6 +95,7 @@ Accede a la configuración haciendo click derecho sobre el botón:
 2. **Color del botón**: Personaliza el color del círculo
 3. **Mostrar etiqueta**: Activa/desactiva una pequeña etiqueta (desactivada por defecto)
 4. **Iniciar con el sistema**: El botón aparecerá automáticamente al iniciar sesión
+5. **Mostrar siempre**: El widget estará visible siempre, no solo cuando Nautilus está activo
 
 ### Configuración del Inicio Automático
 
@@ -83,9 +109,17 @@ Esto creará un archivo `.desktop` en `~/.config/autostart/`
 ## 🎯 Comportamiento Visual
 
 ### Estados de Visibilidad
-- **Visible (100% opacidad)**: Cuando Nautilus está activo/en foco Y hay un directorio válido
-- **Invisible (0% opacidad)**: Cuando otra aplicación está activa (VSCode, navegador, etc.)
-- **Transición**: Animación suave de fade in/out de ~375ms
+- **Modo Normal (por defecto)**:
+  - Visible cuando Nautilus está activo/en foco Y hay un directorio válido
+  - Invisible cuando otra aplicación está activa
+- **Modo Siempre Visible**:
+  - Widget visible permanentemente (activar en configuración)
+  - Útil si trabajas frecuentemente con VSCode
+
+### Carpetas Favoritas
+- **Botón "+"**: Aparece arriba del botón principal cuando el widget está visible
+- **Botones de carpetas**: Se muestran en columna vertical sobre el botón "+"
+- **Identificación**: Cada botón muestra la inicial de la carpeta
 
 ### Efectos Interactivos
 - **Hover**: El botón aumenta brillo y sombra al pasar el mouse
@@ -187,11 +221,12 @@ Para ver el historial completo de cambios, consulta [CHANGELOG.md](CHANGELOG.md)
 
 ### Versión 3.0 (Actual)
 - ✨ Aparición inteligente: solo visible cuando Nautilus está enfocado
-- 🎯 Transparencia circular perfecta sin fondo cuadrado
-- ⚡ Animación 2x más rápida (~375ms)
+- 📁 Sistema de carpetas favoritas con acceso rápido
+- 🎯 Modo "Mostrar siempre" opcional
 - 🎨 Tema oscuro moderno en menús y diálogos
 - 🔍 Detección mejorada con DBus
-- 🚀 Código optimizado sin mensajes de debug
+- 🚀 Código optimizado y compatibilidad GTK3 mejorada
+- 🐛 Corrección de advertencias de deprecación
 
 ## 📝 Licencia
 

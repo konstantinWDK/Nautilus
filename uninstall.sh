@@ -18,14 +18,14 @@ echo "Deteniendo la aplicación..."
 pkill -f "nautilus-vscode-widget.py" 2>/dev/null && echo -e "${GREEN}Aplicación detenida${NC}" || echo "La aplicación no estaba en ejecución"
 
 # Remove desktop entry
-DESKTOP_FILE="$HOME/.local/share/applications/vscode-widget.desktop"
+DESKTOP_FILE="$HOME/.local/share/applications/nautilus-vscode-widget.desktop"
 if [ -f "$DESKTOP_FILE" ]; then
     rm "$DESKTOP_FILE"
     echo -e "${GREEN}Archivo desktop eliminado${NC}"
 fi
 
 # Remove autostart entry
-AUTOSTART_FILE="$HOME/.config/autostart/vscode-widget.desktop"
+AUTOSTART_FILE="$HOME/.config/autostart/nautilus-vscode-widget.desktop"
 if [ -f "$AUTOSTART_FILE" ]; then
     rm "$AUTOSTART_FILE"
     echo -e "${GREEN}Inicio automático deshabilitado${NC}"

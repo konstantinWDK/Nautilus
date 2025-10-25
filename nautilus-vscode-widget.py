@@ -96,9 +96,28 @@ class FloatingButtonApp:
 
         # Show window but start with opacity 0 - let the timer handle visibility
         self.window.show_all()
-        self.window.set_opacity(0.0)
+        self.set_window_opacity(0.0)
         self.window_opacity = 0.0
         self.is_nautilus_focused = False
+
+    def set_window_opacity(self, opacity):
+        """Set opacity for main window"""
+        self.window_opacity = opacity
+        # Usar hide/show en lugar de opacity para mejor compatibilidad
+        if opacity <= 0.0:
+            self.window.hide()
+        else:
+            if not self.window.get_visible():
+                self.window.show_all()
+
+    def set_widget_opacity(self, widget, opacity):
+        """Set opacity for a widget"""
+        # Usar hide/show en lugar de opacity
+        if opacity <= 0.0:
+            widget.hide()
+        else:
+            if not widget.get_visible():
+                widget.show_all()
 
     def on_draw(self, widget, cr):
         """Draw transparent background"""
@@ -150,6 +169,7 @@ class FloatingButtonApp:
             'button_color': '#2C2C2C',
             'show_label': False,
             'autostart': False,
+            'always_visible': False,  # Mostrar siempre el widget
             'favorite_folders': []  # Lista de carpetas favoritas
         }
 
@@ -313,7 +333,7 @@ class FloatingButtonApp:
 
         # Posicionar inicialmente (se actualizará en update_favorite_positions)
         add_window.show_all()
-        add_window.set_opacity(0.0)  # Inicia oculto
+        self.set_widget_opacity(add_window, 0.0)  # Inicia oculto
 
     def create_favorite_buttons(self, overlay):
         """Crear botones para las carpetas favoritas"""
@@ -385,7 +405,7 @@ class FloatingButtonApp:
         self.favorite_buttons.append(fav_data)
 
         fav_window.show_all()
-        fav_window.set_opacity(0.0)  # Inicia oculto
+        self.set_widget_opacity(fav_window, 0.0)  # Inicia oculto
 
     def apply_small_circular_shape(self, widget, size):
         """Aplicar forma circular a ventanas pequeñas"""
@@ -450,7 +470,7 @@ class FloatingButtonApp:
 
                 # Si Nautilus está enfocado, mostrar el nuevo botón
                 if self.is_nautilus_focused:
-                    self.favorite_buttons[-1]['window'].set_opacity(self.window_opacity)
+                    self.set_widget_opacity(self.favorite_buttons[-1]['window'], self.window_opacity)
 
         dialog.destroy()
 
@@ -611,6 +631,13 @@ class FloatingButtonApp:
 
     def check_nautilus_focus(self):
         """Check if Nautilus window is currently focused and has valid directory"""
+        # Si está configurado para mostrar siempre, mantener visible
+        if self.config.get('always_visible', False):
+            if not self.is_nautilus_focused or self.window_opacity < 1.0:
+                self.is_nautilus_focused = True
+                self.fade_in()
+            return True
+
         try:
             # Get the active window ID first
             window_id_result = subprocess.run(
@@ -666,46 +693,30 @@ class FloatingButtonApp:
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
 
-        def animate():
-            if self.window_opacity < 1.0:
-                self.window_opacity = min(1.0, self.window_opacity + 0.2)  # Más rápido: 0.1 -> 0.2
-                self.window.set_opacity(self.window_opacity)
+        # Mostrar inmediatamente sin animación
+        self.window_opacity = 1.0
+        self.set_window_opacity(1.0)
 
-                # También aplicar a botones favoritos y botón de añadir
-                if self.add_button:
-                    self.add_button['window'].set_opacity(self.window_opacity)
-                for fav in self.favorite_buttons:
-                    fav['window'].set_opacity(self.window_opacity)
-
-                return True
-            else:
-                self.fade_timer = None
-                return False
-
-        self.fade_timer = GLib.timeout_add(15, animate)  # Más rápido: 20ms -> 15ms
+        # También aplicar a botones favoritos y botón de añadir
+        if self.add_button:
+            self.set_widget_opacity(self.add_button['window'], 1.0)
+        for fav in self.favorite_buttons:
+            self.set_widget_opacity(fav['window'], 1.0)
 
     def fade_out(self):
         """Smoothly fade out the button"""
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
 
-        def animate():
-            if self.window_opacity > 0.0:
-                self.window_opacity = max(0.0, self.window_opacity - 0.2)  # Más rápido: 0.1 -> 0.2
-                self.window.set_opacity(self.window_opacity)
+        # Ocultar inmediatamente sin animación
+        self.window_opacity = 0.0
+        self.set_window_opacity(0.0)
 
-                # También aplicar a botones favoritos y botón de añadir
-                if self.add_button:
-                    self.add_button['window'].set_opacity(self.window_opacity)
-                for fav in self.favorite_buttons:
-                    fav['window'].set_opacity(self.window_opacity)
-
-                return True
-            else:
-                self.fade_timer = None
-                return False
-
-        self.fade_timer = GLib.timeout_add(15, animate)  # Más rápido: 20ms -> 15ms
+        # También aplicar a botones favoritos y botón de añadir
+        if self.add_button:
+            self.set_widget_opacity(self.add_button['window'], 0.0)
+        for fav in self.favorite_buttons:
+            self.set_widget_opacity(fav['window'], 0.0)
 
     def on_button_right_click(self, widget, event):
         """Show context menu on right click"""
@@ -1485,7 +1496,11 @@ class SettingsDialog:
         autostart_label.set_width_chars(20)
         autostart_label.set_xalign(0)
         self.autostart_switch = Gtk.Switch()
-        self.autostart_switch.set_active(self.app.config.get('autostart', False))
+        # Verificar el estado real del archivo de autostart
+        actual_autostart_state = self.check_autostart_enabled()
+        self.autostart_switch.set_active(actual_autostart_state)
+        # Actualizar el config con el estado real
+        self.app.config['autostart'] = actual_autostart_state
         autostart_box.pack_start(autostart_label, False, False, 0)
         autostart_box.pack_start(self.autostart_switch, False, False, 0)
         box.pack_start(autostart_box, False, False, 0)
@@ -1496,6 +1511,24 @@ class SettingsDialog:
         autostart_info.set_xalign(0)
         autostart_info.set_margin_start(20)
         box.pack_start(autostart_info, False, False, 0)
+
+        # Always visible option
+        always_visible_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        always_visible_label = Gtk.Label(label="Mostrar siempre:")
+        always_visible_label.set_width_chars(20)
+        always_visible_label.set_xalign(0)
+        self.always_visible_switch = Gtk.Switch()
+        self.always_visible_switch.set_active(self.app.config.get('always_visible', False))
+        always_visible_box.pack_start(always_visible_label, False, False, 0)
+        always_visible_box.pack_start(self.always_visible_switch, False, False, 0)
+        box.pack_start(always_visible_box, False, False, 0)
+
+        # Always visible info
+        always_visible_info = Gtk.Label()
+        always_visible_info.set_markup('<span font="8" style="italic">💡 El botón estará visible siempre, no solo con Nautilus</span>')
+        always_visible_info.set_xalign(0)
+        always_visible_info.set_margin_start(20)
+        box.pack_start(always_visible_info, False, False, 0)
 
         # Info
         info = Gtk.Label()
@@ -1621,6 +1654,9 @@ class SettingsDialog:
 
         self.app.config['show_label'] = self.show_label_switch.get_active()
 
+        # Handle always visible
+        self.app.config['always_visible'] = self.always_visible_switch.get_active()
+
         # Handle autostart
         autostart_enabled = self.autostart_switch.get_active()
         self.app.config['autostart'] = autostart_enabled
@@ -1635,6 +1671,15 @@ class SettingsDialog:
 
         # Restart app to apply changes
         self.show_restart_dialog()
+
+    def check_autostart_enabled(self):
+        """Check if autostart is enabled by verifying the .desktop file exists"""
+        try:
+            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-widget.desktop')
+            return os.path.exists(desktop_file)
+        except Exception as e:
+            print(f"Error verificando autostart: {e}")
+            return False
 
     def enable_autostart(self):
         """Enable autostart by creating .desktop file"""
