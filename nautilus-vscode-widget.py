@@ -26,6 +26,8 @@ class FloatingButtonApp:
         self.dragging = False
         self.drag_offset_x = 0
         self.drag_offset_y = 0
+        self.drag_start_x = 0  # Posición inicial del arrastre
+        self.drag_start_y = 0  # Posición inicial del arrastre
         self.window_opacity = 1.0
         self.is_nautilus_focused = False
         self.fade_timer = None
@@ -276,10 +278,18 @@ class FloatingButtonApp:
             box.pack_start(icon_label, True, True, 0)
 
         self.button.add(box)
+
+        # Habilitar eventos de mouse en el botón
+        self.button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                              Gdk.EventMask.BUTTON_RELEASE_MASK |
+                              Gdk.EventMask.POINTER_MOTION_MASK)
+
         self.button.connect('clicked', self.on_button_clicked)
 
-        # Right-click menu
-        self.button.connect('button-press-event', self.on_button_right_click)
+        # Right-click menu y drag con click largo
+        self.button.connect('button-press-event', self.on_button_press_event)
+        self.button.connect('button-release-event', self.on_button_release_event)
+        self.button.connect('motion-notify-event', self.on_button_motion)
 
         overlay.add(self.button)
 
@@ -314,7 +324,7 @@ class FloatingButtonApp:
         # Crear layout principal para el contenedor
         self.favorites_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.favorites_box.set_halign(Gtk.Align.CENTER)  # Centrar horizontalmente todo el contenedor
-        self.favorites_box.set_valign(Gtk.Align.CENTER)  # Centrar verticalmente todo el contenedor
+        self.favorites_box.set_valign(Gtk.Align.START)  # Alinear al inicio (arriba) para orden correcto
         self.favorites_box.set_margin_top(4)
         self.favorites_box.set_margin_bottom(4)
         self.favorites_box.set_margin_start(4)
@@ -329,13 +339,43 @@ class FloatingButtonApp:
             warnings.simplefilter("ignore", DeprecationWarning)
             self.favorites_window.set_opacity(0.0)
 
-        # Crear botones favoritos después de crear el contenedor
-        self.create_favorite_buttons(None)
+        # Crear botones favoritos y botón de añadir
+        self.rebuild_favorites_list()
 
-        # Crear botón de añadir después de crear el contenedor
-        self.create_add_button(None)
+    def rebuild_favorites_list(self):
+        """Reconstruir toda la lista de favoritos en el orden correcto"""
+        # Limpiar todos los botones del contenedor de forma segura
+        children = self.favorites_box.get_children()
+        for child in children:
+            self.favorites_box.remove(child)
+            child.destroy()
 
-    def create_add_button(self, overlay):
+        # Limpiar referencias
+        self.favorite_buttons = []
+        self.add_button = None
+
+        # Primero: añadir carpetas favoritas (arriba)
+        for i, folder_path in enumerate(self.config.get('favorite_folders', [])):
+            self.create_favorite_button(folder_path, i)
+
+        # Último: añadir botón + (abajo)
+        self.create_add_button_internal()
+
+        # Aplicar estilos y actualizar posiciones DESPUÉS de crear todos los botones
+        GLib.idle_add(self._post_rebuild_updates)
+
+    def _post_rebuild_updates(self):
+        """Ejecutar actualizaciones después de reconstruir la lista de favoritos"""
+        try:
+            # Aplicar estilos
+            self.apply_styles()
+            # Actualizar posiciones
+            self.update_favorite_positions()
+        except Exception as e:
+            print(f"Error en _post_rebuild_updates: {e}")
+        return False  # No repetir
+
+    def create_add_button_internal(self):
         """Crear el botón pequeño de añadir (+) en el contenedor de favoritos"""
         # Tamaño del botón - mismo tamaño que los favoritos para consistencia
         btn_size = 24
@@ -364,7 +404,7 @@ class FloatingButtonApp:
         add_btn.set_tooltip_text("Añadir carpeta favorita")
 
         # Añadir al contenedor de favoritos (al final) centrado
-        self.favorites_box.pack_end(add_btn, False, False, 0)
+        self.favorites_box.pack_start(add_btn, False, False, 0)
 
         # Guardar referencia
         self.add_button = {
@@ -375,16 +415,13 @@ class FloatingButtonApp:
         # Mostrar el botón
         add_btn.show_all()
 
-    def create_favorite_buttons(self, overlay):
-        """Crear botones para las carpetas favoritas en el contenedor unificado"""
-        # Limpiar botones anteriores del contenedor
-        for child in self.favorites_box.get_children():
-            child.destroy()
-        self.favorite_buttons = []
+    def create_add_button(self, overlay):
+        """Función legacy - usa rebuild_favorites_list en su lugar"""
+        self.create_add_button_internal()
 
-        # Crear un botón por cada carpeta favorita
-        for i, folder_path in enumerate(self.config.get('favorite_folders', [])):
-            self.create_favorite_button(folder_path, i)
+    def create_favorite_buttons(self, overlay):
+        """Función legacy - usa rebuild_favorites_list en su lugar"""
+        self.rebuild_favorites_list()
 
     def create_favorite_button(self, folder_path, index):
         """Crear un botón individual de carpeta favorita en el contenedor unificado"""
@@ -513,10 +550,8 @@ class FloatingButtonApp:
                 self.config['favorite_folders'].append(folder_path)
                 self.save_config()
 
-                # Crear el nuevo botón
-                index = len(self.favorite_buttons)
-                self.create_favorite_button(folder_path, index)
-                self.update_favorite_positions()
+                # Reconstruir lista completa de favoritos (incluye update_favorite_positions)
+                self.rebuild_favorites_list()
 
                 # Si Nautilus está enfocado, mostrar el contenedor de favoritos
                 if self.is_nautilus_focused and hasattr(self, 'favorites_window'):
@@ -561,18 +596,8 @@ class FloatingButtonApp:
             self.config['favorite_folders'].remove(folder_path)
             self.save_config()
 
-            # Eliminar el botón correspondiente del contenedor
-            for fav in self.favorite_buttons:
-                if fav['path'] == folder_path:
-                    # Remover el botón del contenedor
-                    self.favorites_box.remove(fav['button'])
-                    self.favorite_buttons.remove(fav)
-                    break
-
-            # Re-indexar y reposicionar
-            for i, fav in enumerate(self.favorite_buttons):
-                fav['index'] = i
-            self.update_favorite_positions()
+            # Reconstruir lista completa de favoritos (incluye update_favorite_positions)
+            self.rebuild_favorites_list()
 
     def show_color_picker(self, folder_path):
         """Mostrar diálogo para cambiar color de carpeta favorita"""
@@ -783,8 +808,57 @@ class FloatingButtonApp:
 
         return f'#{r:02x}{g:02x}{b:02x}'
 
+    def on_button_press_event(self, widget, event):
+        """Handle button press on the main button - for dragging and right-click menu"""
+        if event.button == 1:  # Left click
+            self.dragging = True
+            self.drag_start_x = event.x_root
+            self.drag_start_y = event.y_root
+            x, y = self.window.get_position()
+            self.drag_offset_x = event.x_root - x
+            self.drag_offset_y = event.y_root - y
+            # No capturar el evento para permitir que se propague
+            return False
+        elif event.button == 3:  # Right click
+            return self.on_button_right_click(widget, event)
+        return False
+
+    def on_button_release_event(self, widget, event):
+        """Handle button release on the main button"""
+        if event.button == 1:
+            # Check if it was a drag or a click
+            if self.dragging:
+                drag_distance = ((event.x_root - self.drag_start_x) ** 2 +
+                               (event.y_root - self.drag_start_y) ** 2) ** 0.5
+
+                if drag_distance < 5:  # Less than 5 pixels = click, not drag
+                    # It's a click, trigger the button action
+                    self.dragging = False
+                    return False  # Let the clicked signal handle it
+                else:
+                    # It was a drag
+                    self.dragging = False
+                    # Save new position
+                    x, y = self.window.get_position()
+                    self.config['position_x'] = x
+                    self.config['position_y'] = y
+                    self.save_config()
+                    return True  # Prevent clicked signal
+        return False
+
+    def on_button_motion(self, widget, event):
+        """Handle mouse motion on the button for dragging"""
+        if self.dragging:
+            x = int(event.x_root - self.drag_offset_x)
+            y = int(event.y_root - self.drag_offset_y)
+            self.window.move(x, y)
+            # Actualizar posiciones de botones favoritos y botón de añadir
+            self.update_favorite_positions()
+            return True
+        return False
+
     def on_button_press(self, widget, event):
-        """Handle button press for dragging"""
+        """Handle button press for dragging on window"""
         if event.button == 1:  # Left click
             self.dragging = True
             x, y = self.window.get_position()
@@ -792,7 +866,7 @@ class FloatingButtonApp:
             self.drag_offset_y = event.y_root - y
 
     def on_button_release(self, widget, event):
-        """Handle button release"""
+        """Handle button release on window"""
         if event.button == 1:
             self.dragging = False
             # Save new position
@@ -802,7 +876,7 @@ class FloatingButtonApp:
             self.save_config()
 
     def on_motion(self, widget, event):
-        """Handle mouse motion for dragging"""
+        """Handle mouse motion for dragging on window"""
         if self.dragging:
             x = int(event.x_root - self.drag_offset_x)
             y = int(event.y_root - self.drag_offset_y)
