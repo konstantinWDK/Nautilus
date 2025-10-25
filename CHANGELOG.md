@@ -5,6 +5,43 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.2.1] - 2025-01-XX
+
+### ✨ Añadido
+
+#### Personalización de Colores
+- **Colores personalizados por carpeta favorita**: Cada carpeta puede tener su propio color de fondo
+- **Diálogo de selección de color**: Selector nativo con vista previa en tiempo real
+- **Menú contextual mejorado**: Opción "🎨 Cambiar color" en clic derecho
+- **Almacenamiento persistente**: Los colores se guardan automáticamente en la configuración
+
+#### Mejoras Visuales
+- **Centrado perfecto del botón "+"**: Implementación de `Gtk.Layout` para centrado horizontal y vertical
+- **Círculo gris semitransparente para el "+"**: Fondo `rgba(60, 60, 65, 0.85)` con símbolo verde
+- **Centrado mejorado de favoritos**: Letras perfectamente centradas en todos los círculos
+- **Consistencia visual**: Todos los elementos circulares tienen centrado perfecto
+
+### ⚡ Mejorado
+
+#### Interfaz de Usuario
+- **CSS dinámico**: Aplicación de estilos específicos por botón mediante IDs únicos
+- **Efectos hover mejorados**: Resplandor verde suave en el botón "+"
+- **Vista previa en tiempo real**: Muestra cómo se verá el color seleccionado
+- **Gestión de configuración**: Integración perfecta con el sistema de configuración existente
+
+#### Diálogo de Configuración
+- **Texto del enlace más pequeño**: Reducido de font="7" a font="6" para mejor estética
+- **Información de versión**: Añadido "Release: 3.2.1" en la parte inferior del diálogo
+- **Diseño compacto**: Espaciado reducido entre elementos del pie de página
+- **Jerarquía visual mejorada**: Texto más pequeño para información secundaria
+
+#### Experiencia de Usuario
+- **Personalización completa**: Cada usuario puede personalizar la apariencia de sus favoritos
+- **Interfaz intuitiva**: Diálogos de color fáciles de usar y entender
+- **Retroalimentación visual**: Cambios aplicados inmediatamente después de la selección
+
+---
+
 ## [3.2.0] 
 
 ### ⚡ Mejorado
@@ -202,4 +239,3 @@ y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 - `🔒 Seguridad` para vulnerabilidades corregidas
 
 ---
-

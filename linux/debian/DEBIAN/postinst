@@ -5,13 +5,12 @@ set -e
 
 echo "Configurando Nautilus VSCode Widget..."
 
-# Detener cualquier instancia anterior que esté ejecutándose
+# Detener cualquier instancia anterior que esté ejecutándose (de forma más segura)
 echo "Deteniendo versiones anteriores..."
-pkill -f "nautilus-vscode-widget" 2>/dev/null || true
-pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
-
-# Esperar un momento para asegurar que los procesos se detengan
-sleep 1
+if pgrep -f "nautilus-vscode-widget.py" >/dev/null; then
+    pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+    sleep 1
+fi
 
 # Limpiar archivos de instalaciones anteriores inconsistentes
 echo "Limpiando instalaciones anteriores inconsistentes..."

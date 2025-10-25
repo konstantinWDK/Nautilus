@@ -187,7 +187,8 @@ class FloatingButtonApp:
             'show_label': False,
             'autostart': False,
             'always_visible': False,  # Mostrar siempre el widget
-            'favorite_folders': []  # Lista de carpetas favoritas
+            'favorite_folders': [],  # Lista de carpetas favoritas
+            'favorite_colors': {}  # Diccionario de colores para carpetas favoritas
         }
 
         try:
@@ -405,9 +406,9 @@ class FloatingButtonApp:
 
         fav_window.connect('draw', self.on_draw)
 
-        # Crear botón con clase CSS
+        # Crear botón con clase CSS única para cada favorito
         fav_btn = Gtk.Button()
-        fav_btn.set_name("fav-button")
+        fav_btn.set_name(f"fav-button-{index}")
         fav_btn.set_size_request(btn_size, btn_size)
         fav_btn.set_relief(Gtk.ReliefStyle.NONE)
 
@@ -569,6 +570,40 @@ class FloatingButtonApp:
         hex_color = color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
+        # Generar CSS para botones favoritos con colores personalizados
+        favorite_css = ""
+        favorite_colors = self.config.get('favorite_colors', {})
+        
+        for i, folder_path in enumerate(self.config.get('favorite_folders', [])):
+            # Usar color personalizado si existe, o color por defecto
+            fav_color = favorite_colors.get(folder_path, '#1E1E23')
+            fav_hex = fav_color.lstrip('#')
+            fav_r, fav_g, fav_b = tuple(int(fav_hex[i:i+2], 16) for i in (0, 2, 4))
+            
+            favorite_css += f"""
+            /* Botón favorito para {os.path.basename(folder_path)} */
+            #fav-button-{i} {{
+                border-radius: 14px;
+                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.85);
+                color: white;
+                border: none;
+                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+                transition: all 0.2s ease;
+                padding: 0;
+                margin: 0;
+            }}
+
+            #fav-button-{i}:hover {{
+                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.95);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+            }}
+
+            #fav-button-{i}:active {{
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+                background: rgba({fav_r}, {fav_g}, {fav_b}, 0.9);
+            }}
+            """
+
         css = f"""
         /* Ventana del widget principal */
         #floating-button {{
@@ -628,7 +663,7 @@ class FloatingButtonApp:
             color: rgba(100, 200, 100, 1.0);
         }}
 
-        /* Botones de carpetas favoritas */
+        /* Botones de carpetas favoritas por defecto */
         #fav-button {{
             border-radius: 14px;
             background: rgba(30, 30, 35, 0.85);
@@ -654,6 +689,8 @@ class FloatingButtonApp:
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
             background: rgba(25, 25, 30, 0.9);
         }}
+
+        {favorite_css}
         """.encode('utf-8')
 
         css_provider.load_from_data(css)
@@ -1614,11 +1651,11 @@ class SettingsDialog:
             box.pack_start(dir_info, False, False, 0)
 
         # Credits footer
-        credits_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        credits_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         credits_box.set_margin_top(20)
 
         credits_label = Gtk.Label()
-        credits_label.set_markup('<span font="7" foreground="#888888">Realizado por Konstantin WDK</span>')
+        credits_label.set_markup('<span font="6" foreground="#888888">Realizado por Konstantin WDK</span>')
         credits_label.set_xalign(0.5)
         credits_box.pack_start(credits_label, False, False, 0)
 
@@ -1626,7 +1663,14 @@ class SettingsDialog:
         web_button = Gtk.LinkButton.new_with_label("https://webdesignerk.com", "webdesignerk.com")
         web_button.set_relief(Gtk.ReliefStyle.NONE)
         web_button.set_halign(Gtk.Align.CENTER)
+        web_button.get_child().set_markup('<span font="6">webdesignerk.com</span>')
         credits_box.pack_start(web_button, False, False, 0)
+
+        # Version info
+        version_label = Gtk.Label()
+        version_label.set_markup('<span font="6" foreground="#666666">Release: 3.2.1</span>')
+        version_label.set_xalign(0.5)
+        credits_box.pack_start(version_label, False, False, 0)
 
         box.pack_end(credits_box, False, False, 0)
 

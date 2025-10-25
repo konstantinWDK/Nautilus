@@ -5,9 +5,11 @@ set -e
 
 echo "Desinstalando Nautilus VSCode Widget..."
 
-# Detener el programa si está corriendo
-pkill -f "nautilus-vscode-widget" 2>/dev/null || true
-pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+# Detener el programa si está corriendo (de forma más segura)
+if pgrep -f "nautilus-vscode-widget.py" >/dev/null; then
+    pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+    sleep 1
+fi
 
 # Eliminar archivos autostart para cada usuario
 for user_home in /home/*; do

@@ -187,7 +187,8 @@ class FloatingButtonApp:
             'show_label': False,
             'autostart': False,
             'always_visible': False,  # Mostrar siempre el widget
-            'favorite_folders': []  # Lista de carpetas favoritas
+            'favorite_folders': [],  # Lista de carpetas favoritas
+            'favorite_colors': {}  # Diccionario de colores para carpetas favoritas
         }
 
         try:
@@ -332,18 +333,17 @@ class FloatingButtonApp:
         add_btn.set_size_request(btn_size, btn_size)
         add_btn.set_relief(Gtk.ReliefStyle.NONE)
 
-        # Icono + centrado perfectamente con color verde
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_halign(Gtk.Align.CENTER)
-        box.set_valign(Gtk.Align.CENTER)
+        # Icono + centrado perfectamente con color verde y fondo
+        alignment = Gtk.Alignment.new(0.5, 0.5, 0, 0)  # xalign=0.5, yalign=0.5
+        alignment.set_size_request(btn_size, btn_size)
 
         label = Gtk.Label()
         label.set_markup('<span font="13" weight="bold" foreground="#78DC78">+</span>')
         label.set_halign(Gtk.Align.CENTER)
         label.set_valign(Gtk.Align.CENTER)
 
-        box.pack_start(label, True, True, 0)
-        add_btn.add(box)
+        alignment.add(label)
+        add_btn.add(alignment)
 
         add_btn.connect('clicked', self.on_add_folder_clicked)
         add_btn.set_tooltip_text("Añadir carpeta favorita")
@@ -415,17 +415,17 @@ class FloatingButtonApp:
         folder_name = os.path.basename(folder_path)
         initial = folder_name[0].upper() if folder_name else "F"
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_halign(Gtk.Align.CENTER)
-        box.set_valign(Gtk.Align.CENTER)
+        # Usar un Gtk.Alignment para centrado perfecto
+        alignment = Gtk.Alignment.new(0.5, 0.5, 0, 0)  # xalign=0.5, yalign=0.5
+        alignment.set_size_request(btn_size, btn_size)
 
         label = Gtk.Label()
         label.set_markup(f'<span font="12" weight="bold" foreground="white">{initial}</span>')
         label.set_halign(Gtk.Align.CENTER)
         label.set_valign(Gtk.Align.CENTER)
 
-        box.pack_start(label, True, True, 0)
-        fav_btn.add(box)
+        alignment.add(label)
+        fav_btn.add(alignment)
 
         # Conectar eventos
         fav_btn.connect('clicked', lambda b: self.on_favorite_clicked(folder_path))
@@ -531,8 +531,16 @@ class FloatingButtonApp:
         if event.button == 3:  # Clic derecho
             menu = Gtk.Menu()
 
+            # Item para cambiar color
+            color_item = Gtk.MenuItem(label="🎨 Cambiar color")
+            color_item.connect('activate', lambda x: self.show_color_picker(folder_path))
+            menu.append(color_item)
+
+            # Separator
+            menu.append(Gtk.SeparatorMenuItem())
+
             # Item para eliminar
-            delete_item = Gtk.MenuItem(label=f"Eliminar de favoritos")
+            delete_item = Gtk.MenuItem(label="❌ Eliminar de favoritos")
             delete_item.connect('activate', lambda x: self.remove_favorite_folder(folder_path))
             menu.append(delete_item)
 
@@ -558,6 +566,36 @@ class FloatingButtonApp:
             for i, fav in enumerate(self.favorite_buttons):
                 fav['index'] = i
             self.update_favorite_positions()
+
+    def show_color_picker(self, folder_path):
+        """Mostrar diálogo para cambiar color de carpeta favorita"""
+        dialog = Gtk.ColorChooserDialog(
+            title=f"Color para {os.path.basename(folder_path)}",
+            parent=None
+        )
+
+        # Establecer color actual
+        current_color = self.config.get('favorite_colors', {}).get(folder_path, '#1E1E23')
+        color = Gdk.RGBA()
+        color.parse(current_color)
+        dialog.set_rgba(color)
+
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            # Guardar nuevo color
+            new_color = dialog.get_rgba()
+            color_hex = f'#{int(new_color.red*255):02x}{int(new_color.green*255):02x}{int(new_color.blue*255):02x}'
+            
+            # Actualizar configuración
+            if 'favorite_colors' not in self.config:
+                self.config['favorite_colors'] = {}
+            self.config['favorite_colors'][folder_path] = color_hex
+            self.save_config()
+
+            # Aplicar nuevos estilos
+            self.apply_styles()
+
+        dialog.destroy()
 
     def apply_styles(self):
         """Apply CSS styles to the window and button"""
