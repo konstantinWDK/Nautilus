@@ -1514,6 +1514,23 @@ class SettingsDialog:
             dir_info.set_max_width_chars(50)
             box.pack_start(dir_info, False, False, 0)
 
+        # Credits footer
+        credits_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        credits_box.set_margin_top(20)
+
+        credits_label = Gtk.Label()
+        credits_label.set_markup('<span font="7" foreground="#888888">Realizado por Konstantin WDK</span>')
+        credits_label.set_xalign(0.5)
+        credits_box.pack_start(credits_label, False, False, 0)
+
+        # Clickable link
+        web_button = Gtk.LinkButton.new_with_label("https://webdesignerk.com", "webdesignerk.com")
+        web_button.set_relief(Gtk.ReliefStyle.NONE)
+        web_button.set_halign(Gtk.Align.CENTER)
+        credits_box.pack_start(web_button, False, False, 0)
+
+        box.pack_end(credits_box, False, False, 0)
+
         self.dialog.show_all()
 
         response = self.dialog.run()
