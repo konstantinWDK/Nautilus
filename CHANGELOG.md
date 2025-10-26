@@ -5,7 +5,68 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [3.2.1] - 2025-01-XX
+## [3.2.2] - 2025-01-26
+
+### 🐛 Corregido
+
+#### Problema Crítico de Z-Index y Clickabilidad
+- **Botón principal no clickable**: Solucionado el bug crítico donde el botón principal VSCode no respondía a clics debido a superposición de ventanas de favoritos
+- **Zonas muertas en botones favoritos**: Eliminadas las áreas no clickables en los botones circulares de carpetas favoritas
+- **Botón "+" parcialmente funcional**: Corregido el problema donde solo la mitad izquierda del botón "+" era clickable
+
+#### Estabilidad Durante Drag & Drop
+- **"Baile" del botón**: Eliminado completamente el desplazamiento horizontal del botón principal al arrastrarlo
+- **Movimiento sincronizado**: Los botones de favoritos ahora se mueven perfectamente alineados con el botón principal
+- **Posicionamiento absoluto**: Implementado `Gtk.Fixed` en lugar de `Gtk.Overlay` para posicionamiento fijo sin cálculos de layout
+
+### ⚡ Mejorado
+
+#### Sistema de Ventanas y Z-Order
+- **Control explícito de z-order**: Implementado sistema robusto de apilamiento de ventanas
+  - Ventana de favoritos se posiciona debajo con `lower()`
+  - Botón principal siempre encima con `raise_()`
+- **WindowTypeHint optimizado**: Cambiado de `POPUP` (no disponible) a `TOOLTIP` para mejor comportamiento
+- **Geometría de ventana fija**: Añadidos límites min/max exactos (36x36px) para evitar redimensionamiento
+
+#### Experiencia de Arrastre
+- **Función dedicada de drag**: Nueva función `_update_favorites_during_drag()` para actualización sincronizada
+- **Eliminación de throttling innecesario**: Movimiento más fluido sin delays artificiales
+- **Cálculo directo de posiciones**: Optimizado para evitar llamadas a funciones pesadas durante el drag
+
+#### Separación Visual
+- **Espaciado optimizado**: Reducida la separación entre botón principal y favoritos de 16-20px a 6-8px
+- **Mejor cohesión visual**: El conjunto de botones se ve como una unidad cohesiva
+- **Adaptación dinámica**: Separación ajustada según número de botones favoritos
+
+### 🔧 Cambiado
+
+#### Arquitectura de UI
+- **Cambio de contenedor principal**: De `Gtk.Overlay` a `Gtk.Fixed` para posicionamiento absoluto
+- **Eliminación de input_shape**: Removido sistema complejo de regiones de entrada que causaba problemas
+- **Márgenes y padding**: Todos establecidos explícitamente en 0 para el botón principal
+- **CSS reforzado**: Añadidos `min-width` y `min-height` para forzar tamaño exacto
+
+#### Scripts de Instalación
+- **postinst simplificado**: Eliminado código que intentaba manipular dpkg durante la instalación (causaba deadlock)
+- **Auto-inicio removido**: El programa ya no se inicia automáticamente después de la instalación
+- **Versión actualizada**: Todos los scripts muestran versión 3.2.2
+
+### 🗑️ Eliminado
+
+#### Código Problemático
+- **Sistema input_shape**: Removida implementación completa de `_update_favorites_input_shape()`
+- **Manipulación de dpkg en postinst**: Eliminadas líneas 32-39 que causaban estados inconsistentes
+- **Región de entrada dinámica**: Ya no se deshabilita/habilita la región durante fade out
+
+### 📝 Añadido
+
+#### Documentación
+- **Visualización de versión mejorada**: Ahora muestra "release: 3.2.2" en configuración
+- **CHANGELOG completo**: Documentación detallada de todos los cambios
+
+---
+
+## [3.2.1] - 2025-01-25
 
 ### ✨ Añadido
 

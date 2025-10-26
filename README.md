@@ -1,6 +1,11 @@
 # Nautilus VSCode Widget - Botón Flotante Inteligente
 
+[![Version](https://img.shields.io/badge/version-3.2.2-blue.svg)](https://github.com/konstantinWDK/nautilus-vscode-widget)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus directamente en VSCode con un solo click. Aparece solo cuando lo necesitas.
+
+> **📢 Nueva versión 3.2.2**: Corrige problemas críticos de clickabilidad y estabilidad durante drag. Ver [CHANGELOG.md](CHANGELOG.md) para detalles.
 
 ## ✨ Características Principales
 

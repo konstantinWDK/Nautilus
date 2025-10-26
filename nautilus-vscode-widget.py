@@ -5,6 +5,9 @@ Una aplicación con botón flotante que detecta la carpeta activa en Nautilus
 y permite abrirla en VSCode
 """
 
+# Version
+VERSION = "3.2.2"
+
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
@@ -36,6 +39,7 @@ class FloatingButtonApp:
         self.animation_timer = None
         self.favorite_buttons_visible = False
         self.expand_animation_progress = 0.0
+        self.drag_update_pending = False  # Para throttle de actualización durante drag
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -50,8 +54,18 @@ class FloatingButtonApp:
 
         # Set window size - botón muy compacto
         self.button_size = 36
+        # Forzar tamaño exacto de la ventana
         self.window.set_default_size(self.button_size, self.button_size)
+        self.window.set_size_request(self.button_size, self.button_size)
         self.window.set_resizable(False)
+        # Configurar geometría fija
+        geometry = Gdk.Geometry()
+        geometry.min_width = self.button_size
+        geometry.max_width = self.button_size
+        geometry.min_height = self.button_size
+        geometry.max_height = self.button_size
+        self.window.set_geometry_hints(None, geometry,
+                                       Gdk.WindowHints.MIN_SIZE | Gdk.WindowHints.MAX_SIZE)
 
         # Position window in bottom right corner by default
         screen = Gdk.Screen.get_default()
@@ -213,21 +227,37 @@ class FloatingButtonApp:
 
     def create_button(self):
         """Create the main button"""
-        # Main container
-        overlay = Gtk.Overlay()
-        overlay.set_app_paintable(True)
-        overlay.connect('draw', self.on_draw_overlay)
-        self.window.add(overlay)
+        # Main container - Fixed box en lugar de Overlay
+        fixed = Gtk.Fixed()
+        fixed.set_app_paintable(True)
+        fixed.connect('draw', self.on_draw_overlay)
+        fixed.set_size_request(self.button_size, self.button_size)
+        self.window.add(fixed)
 
-        # Button
+        # Button - posicionado en 0,0 para que esté completamente fijo
         self.button = Gtk.Button()
         self.button.set_size_request(self.button_size, self.button_size)
         self.button.set_relief(Gtk.ReliefStyle.NONE)
+        # Eliminar cualquier margen o padding
+        self.button.set_margin_top(0)
+        self.button.set_margin_bottom(0)
+        self.button.set_margin_start(0)
+        self.button.set_margin_end(0)
+        # Alineación para que ocupe todo el espacio
+        self.button.set_halign(Gtk.Align.FILL)
+        self.button.set_valign(Gtk.Align.FILL)
+        self.button.set_hexpand(True)
+        self.button.set_vexpand(True)
 
         # Button content - diseño compacto
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         box.set_halign(Gtk.Align.CENTER)
         box.set_valign(Gtk.Align.CENTER)
+        # Sin márgenes en el contenedor interno
+        box.set_margin_top(0)
+        box.set_margin_bottom(0)
+        box.set_margin_start(0)
+        box.set_margin_end(0)
 
         # Try to load VSCode icon, fallback to SVG or emoji
         icon_loaded = False
@@ -291,7 +321,8 @@ class FloatingButtonApp:
         self.button.connect('button-release-event', self.on_button_release_event)
         self.button.connect('motion-notify-event', self.on_button_motion)
 
-        overlay.add(self.button)
+        # Añadir botón al Fixed container en posición 0,0
+        fixed.put(self.button, 0, 0)
 
         # Tooltip
         self.update_tooltip()
@@ -301,13 +332,18 @@ class FloatingButtonApp:
         # Crear ventana para el contenedor de favoritos
         self.favorites_window = Gtk.Window()
         self.favorites_window.set_decorated(False)
-        self.favorites_window.set_keep_above(True)
+        # Usar UTILITY de nuevo pero sin keep_above
         self.favorites_window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
         self.favorites_window.set_skip_taskbar_hint(True)
         self.favorites_window.set_skip_pager_hint(True)
         self.favorites_window.set_accept_focus(False)
         self.favorites_window.set_app_paintable(True)
         self.favorites_window.set_name("favorites-container")
+        # Permitir que la ventana pase eventos de mouse a través de áreas transparentes
+        self.favorites_window.set_property("can-focus", False)
+        # CRÍTICO: Hacer que la ventana NO capture eventos excepto en widgets específicos
+        self.favorites_window.set_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                                         Gdk.EventMask.BUTTON_RELEASE_MASK)
 
         # Tamaño del contenedor - se ajustará dinámicamente
         self.favorites_window.set_default_size(60, 60)
@@ -331,6 +367,7 @@ class FloatingButtonApp:
         self.favorites_box.set_margin_end(4)
 
         self.favorites_window.add(self.favorites_box)
+
         self.favorites_window.show_all()
 
         # Inicialmente oculto
@@ -492,9 +529,6 @@ class FloatingButtonApp:
         # Calcular tamaño del contenedor basado en número de botones
         num_buttons = len(self.favorite_buttons)
 
-        # Siempre mostrar el contenedor
-        self.favorites_window.show()
-
         # Tamaño del contenedor
         btn_size = 24
         spacing = 4
@@ -518,15 +552,29 @@ class FloatingButtonApp:
         # Calcular posición centrada horizontalmente
         container_x = main_center_x - container_width // 2
 
-        # Posicionar encima del botón principal con separación adecuada
-        # Aumentar la separación para evitar superposición
-        separation = 12 if num_buttons == 0 else 8  # Más separación cuando solo está el botón +
+        # Posicionar encima del botón principal
+        # Separación óptima: pegados pero sin superposición
+        separation = 8 if num_buttons == 0 else 6  # Más pegados
         container_y = main_y - container_height - separation
 
         self.favorites_window.move(container_x, container_y)
 
-        # Aplicar opacidad al contenedor de favoritos
-        self.set_widget_opacity(self.favorites_window, self.window_opacity)
+        # IMPORTANTE: Solo mostrar si la ventana principal está visible
+        # Si está oculta (opacidad 0), también ocultar favoritos para evitar bloquear eventos
+        if self.window_opacity > 0:
+            # CRÍTICO: Primero bajar la ventana de favoritos en el z-order
+            if self.favorites_window.get_window():
+                self.favorites_window.get_window().lower()
+
+            self.favorites_window.show()
+            self.set_widget_opacity(self.favorites_window, self.window_opacity)
+
+            # CRÍTICO: Luego subir el botón principal para que esté siempre encima
+            if self.window.get_window():
+                self.window.get_window().raise_()
+        else:
+            # Ocultar completamente para no bloquear eventos del mouse
+            self.favorites_window.hide()
 
     def on_add_folder_clicked(self, button):
         """Manejar clic en el botón de añadir carpeta"""
@@ -692,6 +740,13 @@ class FloatingButtonApp:
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0;
             margin: 0;
+            min-width: 36px;
+            min-height: 36px;
+        }}
+
+        #floating-button button * {{
+            padding: 0;
+            margin: 0;
         }}
 
         #floating-button button:hover {{
@@ -825,11 +880,41 @@ class FloatingButtonApp:
         if self.dragging:
             x = int(event.x_root - self.drag_offset_x)
             y = int(event.y_root - self.drag_offset_y)
+
+            # Mover ventana principal
             self.window.move(x, y)
-            # Actualizar posiciones de botones favoritos y botón de añadir
-            self.update_favorite_positions()
+
+            # Actualizar posiciones de favoritos de forma sincronizada
+            self._update_favorites_during_drag(x, y)
+
             return True
         return False
+
+    def _update_favorites_during_drag(self, main_x, main_y):
+        """Actualizar posición de favoritos durante el drag de forma optimizada"""
+        if not hasattr(self, 'favorites_window') or not self.favorites_window.get_visible():
+            return
+
+        # Calcular nueva posición de favoritos basada en la posición del botón principal
+        num_buttons = len(self.favorite_buttons)
+        btn_size = 24
+        spacing = 4
+        margin = 8
+
+        container_width = btn_size + margin * 2
+        if num_buttons == 0:
+            container_height = btn_size + margin * 2
+        else:
+            container_height = (btn_size + spacing) * (num_buttons + 1) + margin * 2 - spacing
+
+        main_center_x = main_x + self.button_size // 2
+        container_x = main_center_x - container_width // 2
+
+        separation = 8 if num_buttons == 0 else 6
+        container_y = main_y - container_height - separation
+
+        # Mover ventana de favoritos de forma sincronizada
+        self.favorites_window.move(container_x, container_y)
 
     def on_button_press(self, widget, event):
         """Handle button press for dragging on window"""
@@ -855,8 +940,8 @@ class FloatingButtonApp:
             x = int(event.x_root - self.drag_offset_x)
             y = int(event.y_root - self.drag_offset_y)
             self.window.move(x, y)
-            # Actualizar posiciones de botones favoritos y botón de añadir
-            self.update_favorite_positions()
+            # Actualizar posiciones de favoritos de forma sincronizada
+            self._update_favorites_during_drag(x, y)
 
     def check_nautilus_focus(self):
         """Check if Nautilus window is currently focused and has valid directory"""
@@ -963,6 +1048,9 @@ class FloatingButtonApp:
         else:
             self.favorite_buttons_visible = False
             self.expand_animation_progress = 0.0
+            # CRÍTICO: Ocultar ventana de favoritos para no bloquear eventos
+            if hasattr(self, 'favorites_window'):
+                self.favorites_window.hide()
 
     def animate_favorites_expand(self):
         """Mostrar botones favoritos sin animaciones"""
@@ -1798,6 +1886,12 @@ class SettingsDialog:
         # Credits footer
         credits_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         credits_box.set_margin_top(20)
+
+        # Version label
+        version_label = Gtk.Label()
+        version_label.set_markup(f'<span font="7" foreground="#666666">release: {VERSION}</span>')
+        version_label.set_xalign(0.5)
+        credits_box.pack_start(version_label, False, False, 0)
 
         credits_label = Gtk.Label()
         credits_label.set_markup('<span font="7" foreground="#888888">Realizado por Konstantin WDK</span>')

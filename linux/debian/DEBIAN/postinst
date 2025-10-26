@@ -5,22 +5,18 @@ set -e
 
 echo "Configurando Nautilus VSCode Widget..."
 
-# Detener cualquier instancia anterior que esté ejecutándose (de forma más segura)
+# Detener TODAS las instancias anteriores que estén ejecutándose
 echo "Deteniendo versiones anteriores..."
-if pgrep -f "nautilus-vscode-widget.py" >/dev/null; then
-    pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
-    sleep 1
-fi
+pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+pkill -f "nautilus-vscode-widget" 2>/dev/null || true
+sleep 1
 
-# Limpiar archivos de instalaciones anteriores inconsistentes
-echo "Limpiando instalaciones anteriores inconsistentes..."
-if dpkg -l | grep -q "nautilus-vscode-widget"; then
-    # Si el paquete está en estado inconsistente, limpiarlo
-    if dpkg --status nautilus-vscode-widget 2>/dev/null | grep -q "Status:.*unpacked"; then
-        echo "Limpieza de estado inconsistente..."
-        mv /var/lib/dpkg/info/nautilus-vscode-widget.* /tmp/ 2>/dev/null || true
-        dpkg --remove --force-remove-reinstreq nautilus-vscode-widget 2>/dev/null || true
-    fi
+# Si aún hay procesos, forzar cierre
+if pgrep -f "nautilus-vscode-widget" >/dev/null 2>&1; then
+    echo "Forzando cierre de procesos..."
+    pkill -9 -f "nautilus-vscode-widget.py" 2>/dev/null || true
+    pkill -9 -f "nautilus-vscode-widget" 2>/dev/null || true
+    sleep 1
 fi
 
 # Crear directorio de configuración para cada usuario
@@ -64,13 +60,24 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications 2>/dev/null || true
 fi
 
-# Iniciar automáticamente la nueva versión
-echo "Iniciando nueva versión..."
-/usr/bin/nautilus-vscode-widget &
-
-echo "Nautilus VSCode Widget instalado correctamente."
-echo "Versión: $(dpkg -s nautilus-vscode-widget 2>/dev/null | grep Version | cut -d' ' -f2 || echo 'Nueva instalación')"
-echo "El programa se iniciará automáticamente en el próximo inicio de sesión."
-echo "O puedes iniciarlo manualmente con: nautilus-vscode-widget"
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "✅ Nautilus VSCode Widget instalado correctamente"
+echo "═══════════════════════════════════════════════════════════"
+echo "Versión: 3.2.2"
+echo ""
+echo "📍 Ubicación del programa: /usr/share/nautilus-vscode-widget/"
+echo "⚙️  Configuración guardada en: ~/.config/nautilus-vscode-widget/"
+echo ""
+echo "🔄 Se iniciará automáticamente en cada inicio de sesión"
+echo ""
+echo "💡 Comandos útiles:"
+echo "   • Iniciar:      nautilus-vscode-widget"
+echo "   • Reiniciar:    pkill -f nautilus-vscode-widget && nautilus-vscode-widget"
+echo "   • Ver procesos: ps aux | grep nautilus-vscode-widget"
+echo ""
+echo "⚠️  Para iniciar ahora, ejecuta: nautilus-vscode-widget"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
 
 exit 0
