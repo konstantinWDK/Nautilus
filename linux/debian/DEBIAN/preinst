@@ -1,0 +1,40 @@
+#!/bin/bash
+# Script pre-instalación para nautilus-vscode-widget
+# Instala dependencias automáticamente si no están presentes
+
+set -e
+
+echo "Verificando dependencias..."
+
+# Lista de paquetes necesarios
+DEPENDENCIES="python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 xdotool wmctrl"
+
+# Verificar si todas las dependencias están instaladas
+MISSING_DEPS=""
+for pkg in $DEPENDENCIES; do
+    if ! dpkg -l | grep -q "^ii  $pkg "; then
+        MISSING_DEPS="$MISSING_DEPS $pkg"
+    fi
+done
+
+# Si faltan dependencias, intentar instalarlas automáticamente
+if [ -n "$MISSING_DEPS" ]; then
+    echo "Instalando dependencias faltantes:$MISSING_DEPS"
+
+    # Actualizar lista de paquetes
+    apt-get update -qq 2>/dev/null || true
+
+    # Instalar dependencias faltantes
+    apt-get install -y $MISSING_DEPS 2>/dev/null || {
+        echo "⚠️  No se pudieron instalar automáticamente todas las dependencias."
+        echo "Por favor, instálalas manualmente con:"
+        echo "  sudo apt install$MISSING_DEPS"
+        exit 1
+    }
+
+    echo "✓ Dependencias instaladas correctamente"
+else
+    echo "✓ Todas las dependencias ya están instaladas"
+fi
+
+exit 0

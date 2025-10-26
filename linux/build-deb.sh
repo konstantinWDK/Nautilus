@@ -181,6 +181,8 @@ if [ -f "dist/$PACKAGE_NAME" ]; then
     echo ""
     echo -e "${GREEN}¡Listo para distribuir!${NC}"
     echo ""
+    echo -e "${CYAN}✨ El paquete .deb instalará las dependencias automáticamente${NC}"
+    echo ""
 else
     echo -e "${RED}Error: No se pudo crear el paquete .deb${NC}"
     exit 1
