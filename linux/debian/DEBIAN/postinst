@@ -1,44 +1,10 @@
 #!/bin/bash
-# Script post-instalación para nautilus-vscode-widget
-# Versión simplificada para evitar problemas de permisos
-
 set -e
 
-echo "Configurando Nautilus VSCode Widget..."
-
-# Detener versiones anteriores que puedan estar ejecutándose
-echo "Deteniendo versiones anteriores..."
-pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
-pkill -f "nautilus-vscode-widget" 2>/dev/null || true
-sleep 1
-
-# Actualizar caché de iconos (solo si es posible)
-echo "Actualizando caché de iconos..."
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
-fi
-
-# Actualizar base de datos de aplicaciones (solo si es posible)
-if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database /usr/share/applications 2>/dev/null || true
-fi
-
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-echo "✅ Nautilus VSCode Widget instalado correctamente"
-echo "═══════════════════════════════════════════════════════════"
-echo "Versión: 3.3.0"
-echo ""
-echo "📍 Ubicación del programa: /usr/share/nautilus-vscode-widget/"
-echo "⚙️  Configuración guardada en: ~/.config/nautilus-vscode-widget/"
-echo ""
-echo "💡 Comandos útiles:"
-echo "   • Iniciar:      nautilus-vscode-widget"
-echo "   • Reiniciar:    pkill -f nautilus-vscode-widget && nautilus-vscode-widget"
-echo "   • Ver procesos: ps aux | grep nautilus-vscode-widget"
-echo ""
-echo "⚠️  Para iniciar ahora, ejecuta: nautilus-vscode-widget"
-echo "═══════════════════════════════════════════════════════════"
-echo ""
+case "$1" in
+    configure)
+        echo "✅ Nautilus VSCode Widget 3.3.2 instalado (Fix drag Wayland)"
+        ;;
+esac
 
 exit 0

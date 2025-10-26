@@ -138,6 +138,22 @@ EOF
 VERSION=$(grep "^Version:" "$DEBIAN_DIR/DEBIAN/control" | cut -d' ' -f2)
 PACKAGE_NAME="nautilus-vscode-widget_${VERSION}_all.deb"
 
+# Asegurar permisos correctos según estándares Debian
+echo -e "${CYAN}Configurando permisos según estándares Debian...${NC}"
+# Scripts DEBIAN deben ser ejecutables (755)
+chmod 755 "$DEBIAN_DIR/DEBIAN/preinst" 2>/dev/null || true
+chmod 755 "$DEBIAN_DIR/DEBIAN/postinst" 2>/dev/null || true
+chmod 755 "$DEBIAN_DIR/DEBIAN/prerm" 2>/dev/null || true
+chmod 755 "$DEBIAN_DIR/DEBIAN/postrm" 2>/dev/null || true
+# Control file debe ser 644
+chmod 644 "$DEBIAN_DIR/DEBIAN/control"
+
+# Permisos de archivos instalados
+chmod 755 "$DEBIAN_DIR/usr/bin/nautilus-vscode-widget"
+chmod 755 "$DEBIAN_DIR/usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py"
+chmod 644 "$DEBIAN_DIR/usr/share/applications/nautilus-vscode-widget.desktop"
+chmod 644 "$DEBIAN_DIR/usr/share/doc/nautilus-vscode-widget/copyright"
+
 # Construir el paquete
 echo -e "${CYAN}Construyendo paquete .deb...${NC}"
 mkdir -p "$PROJECT_DIR/dist"
@@ -170,7 +186,7 @@ if [ -f "dist/$PACKAGE_NAME" ]; then
     echo -e "  ${GREEN}sudo apt install ./dist/$PACKAGE_NAME${NC}"
     echo ""
     echo -e "${CYAN}Opción 2: Instalación manual (requiere dependencias previas)${NC}"
-    echo -e "  ${CYAN}sudo apt install python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 xdotool wmctrl${NC}"
+    echo -e "  ${CYAN}sudo apt install python3 python3-gi python3-gi-cairo gir1.2-gtk-3.0 python3-xlib xdotool${NC}"
     echo -e "  ${CYAN}sudo dpkg -i dist/$PACKAGE_NAME${NC}"
     echo ""
     echo -e "  ${BLUE}O con doble clic en el archivo .deb${NC}"

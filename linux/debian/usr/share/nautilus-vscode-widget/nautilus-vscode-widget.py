@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.0"
+VERSION = "3.3.2"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -20,16 +20,24 @@ import json
 import time
 import logging
 import sys
+import shutil
 from datetime import datetime
-from Xlib import display, X
-from Xlib.protocol import rq
+
+# Importaciones opcionales según el entorno
+try:
+    from Xlib import display, X
+    from Xlib.protocol import rq
+    XLIB_AVAILABLE = True
+except ImportError:
+    XLIB_AVAILABLE = False
 
 
 class SubprocessCache:
-    """Cache para resultados de subprocess con TTL"""
-    def __init__(self, ttl=1.0):
+    """Cache para resultados de subprocess con TTL mejorado"""
+    def __init__(self, ttl=5.0, max_size=50):
         self.cache = {}
         self.ttl = ttl
+        self.max_size = max_size
 
     def get(self, key, func):
         """Obtener resultado cacheado o ejecutar función"""
@@ -41,18 +49,181 @@ class SubprocessCache:
 
         result = func()
         self.cache[key] = (result, now)
+
+        # Limpiar cache si excede el tamaño máximo
+        if len(self.cache) > self.max_size:
+            self._cleanup_old_entries()
+
         return result
+
+    def _cleanup_old_entries(self):
+        """Eliminar entradas más antiguas si el cache es muy grande"""
+        now = time.time()
+        # Eliminar entradas expiradas
+        expired_keys = [k for k, (_, ts) in self.cache.items() if now - ts >= self.ttl]
+        for key in expired_keys:
+            del self.cache[key]
+
+        # Si aún está muy grande, eliminar las más antiguas
+        if len(self.cache) > self.max_size:
+            sorted_items = sorted(self.cache.items(), key=lambda x: x[1][1])
+            to_remove = len(self.cache) - self.max_size
+            for key, _ in sorted_items[:to_remove]:
+                del self.cache[key]
 
     def clear(self):
         """Limpiar caché"""
         self.cache.clear()
 
 
+def detect_environment():
+    """Detectar entorno de ejecución y herramientas disponibles"""
+    env_info = {
+        'display_server': 'x11',  # Default
+        'desktop': os.environ.get('XDG_CURRENT_DESKTOP', '').lower(),
+        'has_xdotool': shutil.which('xdotool') is not None,
+        'has_wmctrl': shutil.which('wmctrl') is not None,
+        'has_xprop': shutil.which('xprop') is not None,
+        'has_gdbus': shutil.which('gdbus') is not None,
+        'xlib_available': XLIB_AVAILABLE,
+    }
+
+    # Detectar Wayland
+    if os.environ.get('WAYLAND_DISPLAY'):
+        env_info['display_server'] = 'wayland'
+    elif os.environ.get('XDG_SESSION_TYPE') == 'wayland':
+        env_info['display_server'] = 'wayland'
+
+    return env_info
+
+
+def validate_editor_command(cmd):
+    """Validar que un comando de editor sea seguro y ejecutable"""
+    if not cmd or not isinstance(cmd, str):
+        return None
+
+    # Remover espacios
+    cmd = cmd.strip()
+
+    # Verificar si es una ruta absoluta
+    if os.path.isabs(cmd):
+        if os.path.isfile(cmd) and os.access(cmd, os.X_OK):
+            return cmd
+        return None
+
+    # Buscar en PATH
+    cmd_path = shutil.which(cmd)
+    if cmd_path and os.access(cmd_path, os.X_OK):
+        return cmd_path
+
+    return None
+
+
+def validate_directory(path):
+    """Validar que una ruta sea un directorio válido y accesible"""
+    if not path or not isinstance(path, str):
+        return None
+
+    try:
+        # Resolver symlinks y normalizar ruta
+        path = os.path.realpath(path)
+
+        # Verificar que existe y es directorio
+        if not os.path.isdir(path):
+            return None
+
+        # Verificar permisos de lectura
+        if not os.access(path, os.R_OK):
+            return None
+
+        return path
+    except (OSError, ValueError):
+        return None
+
+
+def is_valid_directory(path):
+    """Helper rápido para verificar si una ruta es un directorio válido"""
+    return path and os.path.exists(path) and os.path.isdir(path)
+
+
+def is_portable_mode():
+    """Detectar si se está ejecutando en modo portable (PyInstaller)"""
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+
+def get_executable_dir():
+    """Obtener el directorio del ejecutable (portable) o del script"""
+    if is_portable_mode():
+        # PyInstaller crea una carpeta temporal en sys._MEIPASS
+        # pero queremos la ubicación del ejecutable
+        return os.path.dirname(sys.executable)
+    else:
+        # Modo normal: directorio del script
+        return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_config_dir():
+    """Obtener directorio de configuración según el modo"""
+    if is_portable_mode():
+        # Modo portable: usar carpeta 'conf' junto al ejecutable
+        config_dir = os.path.join(get_executable_dir(), 'conf')
+    else:
+        # Modo instalado: usar directorio estándar del sistema
+        config_dir = os.path.expanduser('~/.config/nautilus-vscode-widget')
+
+    # Crear el directorio si no existe con permisos seguros (solo usuario)
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir, mode=0o700, exist_ok=True)
+
+    return config_dir
+
+
+def get_log_dir():
+    """Obtener directorio de logs según el modo"""
+    if is_portable_mode():
+        # Modo portable: usar carpeta 'logs' junto al ejecutable
+        log_dir = os.path.join(get_executable_dir(), 'logs')
+    else:
+        # Modo instalado: usar directorio estándar del sistema
+        log_dir = os.path.expanduser('~/.local/share/nautilus-vscode-widget')
+
+    # Crear el directorio si no existe con permisos seguros (solo usuario)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, mode=0o700, exist_ok=True)
+
+    return log_dir
+
+
+def get_autostart_file():
+    """Obtener ruta del archivo de autostart según el modo"""
+    if is_portable_mode():
+        # En modo portable, el autostart funciona diferente
+        # Usamos el archivo de autostart del sistema pero apuntando al ejecutable portable
+        autostart_dir = os.path.expanduser('~/.config/autostart')
+        if not os.path.exists(autostart_dir):
+            os.makedirs(autostart_dir, exist_ok=True)
+        return os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
+    else:
+        # Modo instalado normal
+        autostart_dir = os.path.expanduser('~/.config/autostart')
+        if not os.path.exists(autostart_dir):
+            os.makedirs(autostart_dir, exist_ok=True)
+        return os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
+
+
 class FloatingButtonApp:
     def __init__(self):
-        self.config_file = os.path.expanduser('~/.config/nautilus-vscode-widget/config.json')
+        # Configurar rutas según el modo (portable o instalado)
+        self.is_portable = is_portable_mode()
+        self.config_file = os.path.join(get_config_dir(), 'config.json')
         self.setup_logging()
         self.load_config()
+
+        # Detectar entorno de ejecución (v3.3.1)
+        self.env = detect_environment()
+        self.logger.info(f"Entorno detectado: {self.env['display_server']} - Desktop: {self.env['desktop']}")
+        self.logger.info(f"Herramientas disponibles - xdotool: {self.env['has_xdotool']}, "
+                        f"xlib: {self.env['xlib_available']}, gdbus: {self.env['has_gdbus']}")
 
         # Initialize variables FIRST
         self.current_directory = None
@@ -71,10 +242,10 @@ class FloatingButtonApp:
         self.expand_animation_progress = 0.0
         self.drag_update_pending = False  # Para throttle de actualización durante drag
 
-        # Optimización: Sistema de caché y intervalos adaptativos
-        self.subprocess_cache = SubprocessCache(ttl=1.0)  # 1 segundo de caché
-        self.check_focus_interval = 200  # Intervalo actual para check_nautilus_focus
-        self.update_dir_interval = 500   # Intervalo actual para update_current_directory
+        # Optimización: Sistema de caché y intervalos adaptativos (v3.3.1 optimizado)
+        self.subprocess_cache = SubprocessCache(ttl=5.0, max_size=50)  # 5 segundos de caché, máximo 50 entradas
+        self.check_focus_interval = 500  # Intervalo actual para check_nautilus_focus (optimizado de 200ms a 500ms)
+        self.update_dir_interval = 1000  # Intervalo actual para update_current_directory (optimizado de 500ms a 1000ms)
         self.focus_timer_id = None
         self.dir_timer_id = None
         self.recent_activity = False  # Flag para z-order check
@@ -85,10 +256,20 @@ class FloatingButtonApp:
         self.window.set_title("VSCode Widget")
         self.window.set_decorated(False)
         self.window.set_keep_above(True)
-        self.window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
+
+        # Configuración adaptada según el entorno (v3.3.2 fix para drag en Wayland)
+        if self.env['display_server'] == 'wayland':
+            # En Wayland, usar DOCK permite drag y no requiere focus
+            self.window.set_type_hint(Gdk.WindowTypeHint.DOCK)
+        else:
+            # En X11, UTILITY funciona bien
+            self.window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
+
         self.window.set_skip_taskbar_hint(True)
         self.window.set_skip_pager_hint(True)
-        self.window.set_accept_focus(False)
+        # No desactivar focus en Wayland (causa problemas de drag)
+        if self.env['display_server'] != 'wayland':
+            self.window.set_accept_focus(False)
 
         # Set window size - botón muy compacto
         self.button_size = 36
@@ -165,6 +346,11 @@ class FloatingButtonApp:
         # Posicionar botones secundarios después de que la ventana esté visible
         # Se hará en el primer fade_in()
 
+        # Forzar la posición guardada después de que la ventana se muestre
+        # Esto previene que el window manager reposicione la ventana
+        GLib.idle_add(self._restore_saved_position)
+        GLib.timeout_add(100, self._restore_saved_position)  # Backup después de 100ms
+
     def set_window_opacity(self, opacity):
         """Set opacity for main window"""
         self.window_opacity = opacity
@@ -224,10 +410,7 @@ class FloatingButtonApp:
 
     def setup_logging(self):
         """Setup structured logging system"""
-        log_dir = os.path.expanduser('~/.local/share/nautilus-vscode-widget')
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
-        
+        log_dir = get_log_dir()
         log_file = os.path.join(log_dir, 'widget.log')
         
         # Configure logging
@@ -736,6 +919,28 @@ class FloatingButtonApp:
 
         return True  # Continuar el timer
 
+    def _restore_saved_position(self):
+        """Forzar la restauración de la posición guardada en la configuración.
+        Esto previene que el window manager reposicione la ventana al mostrarla."""
+        try:
+            # Verificar que no es la primera ejecución
+            if not self.config.get('first_run', True):
+                saved_x = self.config.get('position_x', 100)
+                saved_y = self.config.get('position_y', 100)
+
+                # Obtener posición actual
+                current_x, current_y = self.window.get_position()
+
+                # Solo mover si la posición actual es diferente a la guardada
+                # Tolerancia de 5 píxeles para evitar movimientos innecesarios
+                if abs(current_x - saved_x) > 5 or abs(current_y - saved_y) > 5:
+                    self.window.move(saved_x, saved_y)
+                    self.logger.info(f"Posición restaurada a ({saved_x}, {saved_y}) desde ({current_x}, {current_y})")
+        except Exception as e:
+            self.logger.error(f"Error restaurando posición: {e}")
+
+        return False  # No repetir, solo ejecutar una vez
+
     def on_add_folder_clicked(self, button):
         """Manejar clic en el botón de añadir carpeta"""
         dialog = Gtk.FileChooserDialog(
@@ -1228,15 +1433,15 @@ class FloatingButtonApp:
                 self._adjust_check_intervals(False)
 
     def _adjust_check_intervals(self, nautilus_focused):
-        """Ajustar intervalos de timers según el estado de foco"""
+        """Ajustar intervalos de timers según el estado de foco (v3.3.1 optimizado)"""
         if nautilus_focused:
-            # Nautilus enfocado: intervalos rápidos
-            new_focus_interval = 200
-            new_dir_interval = 500
+            # Nautilus enfocado: intervalos moderados (optimizado para reducir CPU)
+            new_focus_interval = 500   # Optimizado: 200ms -> 500ms
+            new_dir_interval = 1000    # Optimizado: 500ms -> 1000ms
         else:
-            # Nautilus no enfocado: intervalos lentos para ahorrar CPU
-            new_focus_interval = 1000
-            new_dir_interval = 2000
+            # Nautilus no enfocado: intervalos muy lentos para ahorrar CPU
+            new_focus_interval = 2000  # Optimizado: 1000ms -> 2000ms
+            new_dir_interval = 3000    # Optimizado: 2000ms -> 3000ms
 
         # Solo reiniciar timers si el intervalo ha cambiado
         if new_focus_interval != self.check_focus_interval:
@@ -1360,24 +1565,42 @@ class FloatingButtonApp:
             )
     
     def try_open_with_editor(self):
-        """Try to open with configured editor"""
+        """Try to open with configured editor (v3.3.1 con validación de seguridad)"""
         try:
             editor_cmd = self.config.get('editor_command', 'code')
-            
+
+            # Validar comando de editor (v3.3.1)
+            validated_cmd = validate_editor_command(editor_cmd)
+            if not validated_cmd:
+                self.logger.warning(f"Comando de editor inválido o no encontrado: {editor_cmd}")
+                return False
+
+            # Validar directorio (v3.3.1)
+            validated_dir = validate_directory(self.current_directory)
+            if not validated_dir:
+                self.logger.warning(f"Directorio inválido o inaccesible: {self.current_directory}")
+                return False
+
             # Create the subprocess with proper settings to avoid terminal popup
             process = subprocess.Popen(
-                [editor_cmd, self.current_directory],
+                [validated_cmd, validated_dir],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True
             )
-            
+
+            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir}")
             return True
-            
+
         except FileNotFoundError:
+            self.logger.error(f"Comando no encontrado: {editor_cmd}")
+            return False
+        except PermissionError:
+            self.logger.error(f"Sin permisos para ejecutar: {editor_cmd}")
             return False
         except Exception as e:
+            self.logger.error(f"Error al abrir editor: {e}")
             return False
     
     def try_open_with_common_editors(self):
@@ -2272,7 +2495,7 @@ class SettingsDialog:
     def check_autostart_enabled(self):
         """Check if autostart is enabled by verifying the .desktop file exists"""
         try:
-            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-widget.desktop')
+            desktop_file = get_autostart_file()
             return os.path.exists(desktop_file)
         except Exception as e:
             print(f"Error verificando autostart: {e}")
@@ -2281,18 +2504,23 @@ class SettingsDialog:
     def enable_autostart(self):
         """Enable autostart by creating .desktop file"""
         try:
-            autostart_dir = os.path.expanduser('~/.config/autostart')
-            if not os.path.exists(autostart_dir):
-                os.makedirs(autostart_dir)
+            desktop_file = get_autostart_file()
 
-            desktop_file = os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
-            script_path = os.path.abspath(__file__)
+            # Determinar el comando de ejecución según el modo
+            if self.app.is_portable:
+                # Modo portable: usar el ejecutable
+                exec_path = sys.executable
+                exec_cmd = f'"{exec_path}"'
+            else:
+                # Modo instalado: usar python3 + script
+                script_path = os.path.abspath(__file__)
+                exec_cmd = f'python3 "{script_path}"'
 
             desktop_content = f"""[Desktop Entry]
 Type=Application
 Name=Nautilus VSCode Widget
 Comment=Floating button to open folders in VSCode from Nautilus
-Exec=python3 "{script_path}"
+Exec={exec_cmd}
 Icon=com.visualstudio.code
 Terminal=false
 Hidden=false
@@ -2308,6 +2536,8 @@ StartupNotify=false
             os.chmod(desktop_file, 0o755)
 
             print(f"Autostart habilitado: {desktop_file}")
+            if self.app.is_portable:
+                print(f"Modo portable: ejecutable en {exec_path}")
 
         except Exception as e:
             print(f"Error habilitando autostart: {e}")
@@ -2315,7 +2545,7 @@ StartupNotify=false
     def disable_autostart(self):
         """Disable autostart by removing .desktop file"""
         try:
-            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-widget.desktop')
+            desktop_file = get_autostart_file()
             if os.path.exists(desktop_file):
                 os.remove(desktop_file)
                 print("Autostart deshabilitado")

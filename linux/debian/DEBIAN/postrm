@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    purge)
+        rm -rf /home/*/.config/nautilus-vscode-widget 2>/dev/null || true
+        rm -rf /home/*/.local/share/nautilus-vscode-widget 2>/dev/null || true
+        ;;
+esac
+
+exit 0

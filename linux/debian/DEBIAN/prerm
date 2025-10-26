@@ -1,26 +1,10 @@
 #!/bin/bash
-# Script pre-eliminación para nautilus-vscode-widget
-
 set -e
 
-echo "Desinstalando Nautilus VSCode Widget..."
-
-# Detener el programa si está corriendo (de forma más segura)
-if pgrep -f "nautilus-vscode-widget.py" >/dev/null; then
-    pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
-    sleep 1
-fi
-
-# Eliminar archivos autostart para cada usuario
-for user_home in /home/*; do
-    if [ -d "$user_home" ]; then
-        autostart_file="$user_home/.config/autostart/nautilus-vscode-widget.desktop"
-        if [ -f "$autostart_file" ]; then
-            rm -f "$autostart_file"
-        fi
-    fi
-done
-
-echo "Nautilus VSCode Widget desinstalado."
+case "$1" in
+    remove|upgrade|deconfigure)
+        pkill -9 -f "nautilus-vscode-widget" 2>/dev/null || true
+        ;;
+esac
 
 exit 0
