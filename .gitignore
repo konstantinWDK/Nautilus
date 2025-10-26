@@ -8,7 +8,7 @@ build/
 develop-eggs/
 
 # Temporarily allowing dist/ for .deb distribution
-# dist/
+dist/
 downloads/
 eggs/
 .eggs/
