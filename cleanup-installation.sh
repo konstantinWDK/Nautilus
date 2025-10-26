@@ -8,24 +8,33 @@ echo "====================================================="
 echo ""
 
 echo "🔄 Deteniendo procesos en ejecución..."
-pkill -f "nautilus-vscode-widget" 2>/dev/null || true
-pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
+pkill -9 -f "nautilus-vscode-widget" 2>/dev/null || true
+pkill -9 -f "nautilus-vscode-widget.py" 2>/dev/null || true
 
 # Esperar para asegurar que los procesos se detengan
 sleep 2
 
 echo "🗑️  Limpiando instalaciones anteriores..."
 
-# Limpiar instalación de paquete .deb si existe
-if dpkg -l | grep -q "nautilus-vscode-widget"; then
+# PRIMERO: Limpiar archivos de dpkg si hay estado inconsistente
+echo "🧹 Limpiando estado de dpkg..."
+sudo rm -f /var/lib/dpkg/info/nautilus-vscode-widget.* 2>/dev/null || true
+
+# SEGUNDO: Intentar configurar dpkg
+echo "🔧 Reparando dpkg..."
+sudo dpkg --configure -a 2>/dev/null || true
+
+# TERCERO: Limpiar instalación de paquete .deb si existe
+if dpkg -l | grep -q "nautilus-vscode-widget" 2>/dev/null; then
     echo "📦 Eliminando paquete .deb instalado..."
-    sudo dpkg --remove --force-remove-reinstreq nautilus-vscode-widget 2>/dev/null || true
+    sudo dpkg --remove --force-all nautilus-vscode-widget 2>/dev/null || true
+    sudo dpkg --purge --force-all nautilus-vscode-widget 2>/dev/null || true
     sudo apt remove --purge nautilus-vscode-widget 2>/dev/null || true
 fi
 
-# Limpiar archivos de dpkg si hay estado inconsistente
-echo "🧹 Limpiando estado de dpkg..."
-sudo mv /var/lib/dpkg/info/nautilus-vscode-widget.* /tmp/ 2>/dev/null || true
+# CUARTO: Limpiar de nuevo archivos de dpkg por si acaso
+echo "🧹 Limpieza final de dpkg..."
+sudo rm -f /var/lib/dpkg/info/nautilus-vscode-widget.* 2>/dev/null || true
 
 # Limpiar archivos manualmente
 echo "📁 Eliminando archivos de instalación..."

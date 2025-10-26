@@ -113,6 +113,8 @@ class FloatingButtonApp:
         # Start monitoring Nautilus windows and focus
         GLib.timeout_add(500, self.update_current_directory)
         GLib.timeout_add(200, self.check_nautilus_focus)
+        # Timer periódico para asegurar z-order correcto (cada 2 segundos)
+        GLib.timeout_add(2000, self._periodic_zorder_check)
 
         self.window.connect('destroy', Gtk.main_quit)
 
@@ -231,7 +233,10 @@ class FloatingButtonApp:
         fixed = Gtk.Fixed()
         fixed.set_app_paintable(True)
         fixed.connect('draw', self.on_draw_overlay)
+        # Forzar tamaño exacto del contenedor - NO permitir expansión
         fixed.set_size_request(self.button_size, self.button_size)
+        fixed.set_hexpand(False)
+        fixed.set_vexpand(False)
         self.window.add(fixed)
 
         # Button - posicionado en 0,0 para que esté completamente fijo
@@ -243,11 +248,11 @@ class FloatingButtonApp:
         self.button.set_margin_bottom(0)
         self.button.set_margin_start(0)
         self.button.set_margin_end(0)
-        # Alineación para que ocupe todo el espacio
-        self.button.set_halign(Gtk.Align.FILL)
-        self.button.set_valign(Gtk.Align.FILL)
-        self.button.set_hexpand(True)
-        self.button.set_vexpand(True)
+        # NO usar FILL ni expand - mantener tamaño fijo
+        self.button.set_halign(Gtk.Align.START)
+        self.button.set_valign(Gtk.Align.START)
+        self.button.set_hexpand(False)
+        self.button.set_vexpand(False)
 
         # Button content - diseño compacto
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -562,19 +567,35 @@ class FloatingButtonApp:
         # IMPORTANTE: Solo mostrar si la ventana principal está visible
         # Si está oculta (opacidad 0), también ocultar favoritos para evitar bloquear eventos
         if self.window_opacity > 0:
-            # CRÍTICO: Primero bajar la ventana de favoritos en el z-order
-            if self.favorites_window.get_window():
-                self.favorites_window.get_window().lower()
-
             self.favorites_window.show()
             self.set_widget_opacity(self.favorites_window, self.window_opacity)
 
-            # CRÍTICO: Luego subir el botón principal para que esté siempre encima
-            if self.window.get_window():
-                self.window.get_window().raise_()
+            # CRÍTICO: Forzar z-order después de cada actualización para evitar que se pierda
+            GLib.idle_add(self._ensure_correct_zorder)
         else:
             # Ocultar completamente para no bloquear eventos del mouse
             self.favorites_window.hide()
+
+    def _ensure_correct_zorder(self):
+        """Asegurar que el z-order sea correcto: favoritos abajo, botón principal arriba"""
+        try:
+            if self.favorites_window.get_window() and self.window.get_window():
+                # Primero bajar favoritos
+                self.favorites_window.get_window().lower()
+                # Luego subir botón principal
+                self.window.get_window().raise_()
+        except Exception as e:
+            print(f"Error en _ensure_correct_zorder: {e}")
+        return False  # No repetir
+
+    def _periodic_zorder_check(self):
+        """Chequeo periódico para mantener el z-order correcto"""
+        # Solo corregir si ambas ventanas están visibles
+        if (self.window_opacity > 0 and
+            hasattr(self, 'favorites_window') and
+            self.favorites_window.get_visible()):
+            self._ensure_correct_zorder()
+        return True  # Continuar el timer
 
     def on_add_folder_clicked(self, button):
         """Manejar clic en el botón de añadir carpeta"""
