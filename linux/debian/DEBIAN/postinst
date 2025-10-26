@@ -1,61 +1,24 @@
 #!/bin/bash
 # Script post-instalación para nautilus-vscode-widget
+# Versión simplificada para evitar problemas de permisos
 
 set -e
 
 echo "Configurando Nautilus VSCode Widget..."
 
-# Detener TODAS las instancias anteriores que estén ejecutándose
+# Detener versiones anteriores que puedan estar ejecutándose
 echo "Deteniendo versiones anteriores..."
 pkill -f "nautilus-vscode-widget.py" 2>/dev/null || true
 pkill -f "nautilus-vscode-widget" 2>/dev/null || true
 sleep 1
 
-# Si aún hay procesos, forzar cierre
-if pgrep -f "nautilus-vscode-widget" >/dev/null 2>&1; then
-    echo "Forzando cierre de procesos..."
-    pkill -9 -f "nautilus-vscode-widget.py" 2>/dev/null || true
-    pkill -9 -f "nautilus-vscode-widget" 2>/dev/null || true
-    sleep 1
-fi
-
-# Crear directorio de configuración para cada usuario
-for user_home in /home/*; do
-    if [ -d "$user_home" ]; then
-        username=$(basename "$user_home")
-
-        # Crear directorio autostart si no existe
-        autostart_dir="$user_home/.config/autostart"
-        mkdir -p "$autostart_dir"
-
-        # Crear archivo .desktop para autostart
-        cat > "$autostart_dir/nautilus-vscode-widget.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Nautilus VSCode Widget
-Comment=Floating button to open folders in VSCode from Nautilus
-Exec=/usr/bin/nautilus-vscode-widget
-Icon=nautilus-vscode-widget
-Terminal=false
-Hidden=false
-X-GNOME-Autostart-enabled=true
-Categories=Utility;Development;
-StartupNotify=false
-EOF
-
-        # Establecer permisos correctos
-        chown "$username:$username" "$autostart_dir/nautilus-vscode-widget.desktop" 2>/dev/null || true
-        chmod +x "$autostart_dir/nautilus-vscode-widget.desktop" 2>/dev/null || true
-    fi
-done
-
-# Actualizar caché de iconos
+# Actualizar caché de iconos (solo si es posible)
 echo "Actualizando caché de iconos..."
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 fi
 
-# Actualizar base de datos de aplicaciones
+# Actualizar base de datos de aplicaciones (solo si es posible)
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications 2>/dev/null || true
 fi
@@ -68,8 +31,6 @@ echo "Versión: 3.3.0"
 echo ""
 echo "📍 Ubicación del programa: /usr/share/nautilus-vscode-widget/"
 echo "⚙️  Configuración guardada en: ~/.config/nautilus-vscode-widget/"
-echo ""
-echo "🔄 Se iniciará automáticamente en cada inicio de sesión"
 echo ""
 echo "💡 Comandos útiles:"
 echo "   • Iniciar:      nautilus-vscode-widget"
