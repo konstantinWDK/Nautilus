@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.2.3"
+VERSION = "3.3.0"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -18,6 +18,11 @@ import os
 import re
 import json
 import time
+import logging
+import sys
+from datetime import datetime
+from Xlib import display, X
+from Xlib.protocol import rq
 
 
 class SubprocessCache:
@@ -46,6 +51,7 @@ class SubprocessCache:
 class FloatingButtonApp:
     def __init__(self):
         self.config_file = os.path.expanduser('~/.config/nautilus-vscode-widget/config.json')
+        self.setup_logging()
         self.load_config()
 
         # Initialize variables FIRST
@@ -103,24 +109,24 @@ class FloatingButtonApp:
         screen = Gdk.Screen.get_default()
         if self.config.get('first_run', True):
             # Primera vez: posicionar en esquina inferior derecha
-            screen_width = screen.get_width()
-            screen_height = screen.get_height()
-            self.config['position_x'] = screen_width - self.button_size - 20
-            self.config['position_y'] = screen_height - self.button_size - 80
+            # Usar métodos modernos para obtener dimensiones de pantalla
+            display = Gdk.Display.get_default()
+            monitor = display.get_primary_monitor() or display.get_monitor(0)
+            geometry = monitor.get_geometry()
+            screen_width = geometry.width
+            screen_height = geometry.height
+            # Posicionar en el centro de la pantalla para pruebas
+            self.config['position_x'] = screen_width // 2 - self.button_size // 2
+            self.config['position_y'] = screen_height // 2 - self.button_size // 2
+            # Forzar siempre visible para pruebas
+            self.config['always_visible'] = True
             self.config['first_run'] = False
             self.save_config()
 
         self.window.move(self.config['position_x'], self.config['position_y'])
 
-        # Make window transparent
-        visual = screen.get_rgba_visual()
-        if visual:
-            self.window.set_visual(visual)
-
-        self.window.set_app_paintable(True)
-
-        # Connect draw signal for transparency
-        self.window.connect('draw', self.on_draw)
+        # NO usar transparencia - causa problemas de visibilidad
+        self.window.set_app_paintable(False)
 
         # Create button
         self.create_button()
@@ -150,13 +156,11 @@ class FloatingButtonApp:
 
         self.window.connect('destroy', Gtk.main_quit)
 
-        # Show window but start with opacity 0 - let the timer handle visibility
+        # Show window - siempre visible para pruebas
         self.window.show_all()
-
-        # Ocultar todo inicialmente
-        self.set_window_opacity(0.0)
-        self.window_opacity = 0.0
-        self.is_nautilus_focused = False
+        self.set_window_opacity(1.0)
+        self.window_opacity = 1.0
+        self.is_nautilus_focused = True
 
         # Posicionar botones secundarios después de que la ventana esté visible
         # Se hará en el primer fade_in()
@@ -218,8 +222,29 @@ class FloatingButtonApp:
             # Also apply to input shape so clicks outside circle don't register
             self.window.get_window().input_shape_combine_region(region, 0, 0)
 
+    def setup_logging(self):
+        """Setup structured logging system"""
+        log_dir = os.path.expanduser('~/.local/share/nautilus-vscode-widget')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        
+        log_file = os.path.join(log_dir, 'widget.log')
+        
+        # Configure logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file, encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        
+        self.logger = logging.getLogger('NautilusVSCodeWidget')
+        self.logger.info(f"Widget iniciado - Versión {VERSION}")
+
     def load_config(self):
-        """Load configuration from file"""
+        """Load configuration from file with validation"""
         default_config = {
             'position_x': 100,
             'position_y': 100,
@@ -236,16 +261,90 @@ class FloatingButtonApp:
             config_dir = os.path.dirname(self.config_file)
             if not os.path.exists(config_dir):
                 os.makedirs(config_dir)
+                self.logger.info(f"Directorio de configuración creado: {config_dir}")
 
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
-                    self.config = {**default_config, **json.load(f)}
+                    loaded_config = json.load(f)
+                
+                # Validar configuración cargada
+                self.config = self.validate_config(loaded_config, default_config)
+                self.logger.info("Configuración cargada exitosamente")
             else:
                 self.config = default_config
                 self.save_config()
+                self.logger.info("Configuración por defecto creada")
+                
         except Exception as e:
-            print(f"Error loading config: {e}")
+            self.logger.error(f"Error cargando configuración: {e}")
             self.config = default_config
+
+    def validate_config(self, loaded_config, default_config):
+        """Validate and sanitize loaded configuration"""
+        validated_config = default_config.copy()
+        
+        # Validar tipos de datos
+        for key, default_value in default_config.items():
+            if key in loaded_config:
+                loaded_value = loaded_config[key]
+                
+                # Validar tipo de dato
+                if type(loaded_value) != type(default_value):
+                    self.logger.warning(f"Tipo incorrecto para {key}: {type(loaded_value)}. Usando valor por defecto.")
+                    continue
+                
+                # Validaciones específicas por tipo
+                if isinstance(default_value, list):
+                    # Para listas, verificar que todos los elementos sean strings
+                    if all(isinstance(item, str) for item in loaded_value):
+                        validated_config[key] = loaded_value
+                    else:
+                        self.logger.warning(f"Lista inválida para {key}. Usando valor por defecto.")
+                elif isinstance(default_value, dict):
+                    # Para diccionarios, verificar que claves y valores sean strings
+                    if all(isinstance(k, str) and isinstance(v, str) for k, v in loaded_value.items()):
+                        validated_config[key] = loaded_value
+                    else:
+                        self.logger.warning(f"Diccionario inválido para {key}. Usando valor por defecto.")
+                elif isinstance(default_value, bool):
+                    validated_config[key] = bool(loaded_value)
+                elif isinstance(default_value, int):
+                    # Para enteros, verificar rango razonable
+                    if -10000 <= loaded_value <= 10000:
+                        validated_config[key] = loaded_value
+                    else:
+                        self.logger.warning(f"Valor fuera de rango para {key}: {loaded_value}. Usando valor por defecto.")
+                elif isinstance(default_value, str):
+                    # Para strings, validar formato de color si es button_color
+                    if key == 'button_color':
+                        if self.is_valid_color(loaded_value):
+                            validated_config[key] = loaded_value
+                        else:
+                            self.logger.warning(f"Color inválido para {key}: {loaded_value}. Usando valor por defecto.")
+                    else:
+                        validated_config[key] = loaded_value
+                else:
+                    validated_config[key] = loaded_value
+        
+        return validated_config
+
+    def is_valid_color(self, color_str):
+        """Validate color string format"""
+        if not isinstance(color_str, str):
+            return False
+        
+        # Validar formato hexadecimal
+        if color_str.startswith('#') and len(color_str) in [4, 7, 9]:
+            try:
+                int(color_str[1:], 16)
+                return True
+            except ValueError:
+                return False
+        
+        # Validar nombres de colores CSS básicos
+        basic_colors = ['black', 'white', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta', 
+                       'gray', 'grey', 'orange', 'purple', 'pink', 'brown']
+        return color_str.lower() in basic_colors
 
     def save_config(self):
         """Save configuration to file"""
@@ -1017,6 +1116,62 @@ class FloatingButtonApp:
             return True
 
         try:
+            # Usar python-xlib para detección nativa (más rápido que subprocess)
+            nautilus_focused = self.is_nautilus_focused_native()
+
+            # Check if we should show the button
+            has_directory = self.current_directory and os.path.exists(self.current_directory)
+            should_show = nautilus_focused and has_directory
+
+            # If focus state changed
+            if should_show != self.is_nautilus_focused:
+                self.is_nautilus_focused = should_show
+
+                if should_show:
+                    self.fade_in()
+                    self._adjust_check_intervals(True)
+                else:
+                    self.fade_out()
+                    self._adjust_check_intervals(False)
+
+        except Exception as e:
+            self.logger.warning(f"Error en detección de foco nativo: {e}")
+            # Fallback a método subprocess si python-xlib falla
+            self.check_nautilus_focus_fallback()
+
+        return True  # Continue timer
+
+    def is_nautilus_focused_native(self):
+        """Check if Nautilus is focused using python-xlib (native X11)"""
+        try:
+            d = display.Display()
+            # Obtener ventana enfocada
+            focused_window = d.get_input_focus().focus
+            
+            # Si es un InputOnly window, obtener la ventana padre
+            if focused_window.__class__.__name__ == 'InputOnly':
+                focused_window = focused_window.query_tree().parent
+            
+            # Obtener propiedades de la ventana
+            wm_class = focused_window.get_wm_class()
+            if wm_class:
+                class_name = wm_class[1].lower() if len(wm_class) > 1 else wm_class[0].lower()
+                return 'nautilus' in class_name
+            
+            # Intentar obtener WM_NAME como fallback
+            wm_name = focused_window.get_wm_name()
+            if wm_name:
+                return 'nautilus' in wm_name.lower()
+            
+            return False
+            
+        except Exception as e:
+            self.logger.debug(f"Error en detección nativa: {e}")
+            return False
+
+    def check_nautilus_focus_fallback(self):
+        """Fallback method using subprocess if native detection fails"""
+        try:
             # Usar caché para subprocess
             def get_active_window():
                 result = subprocess.run(
@@ -1034,7 +1189,7 @@ class FloatingButtonApp:
                     self.is_nautilus_focused = False
                     self.fade_out()
                     self._adjust_check_intervals(False)
-                return True
+                return
 
             # Usar caché para window class
             def get_window_class():
@@ -1064,14 +1219,13 @@ class FloatingButtonApp:
                     self.fade_out()
                     self._adjust_check_intervals(False)
 
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"Error en fallback de detección: {e}")
             # If xdotool fails, hide button to be safe
             if self.is_nautilus_focused:
                 self.is_nautilus_focused = False
                 self.fade_out()
                 self._adjust_check_intervals(False)
-
-        return True  # Continue timer
 
     def _adjust_check_intervals(self, nautilus_focused):
         """Ajustar intervalos de timers según el estado de foco"""
@@ -1184,7 +1338,7 @@ class FloatingButtonApp:
         """Handle button click to open VSCode"""
         # Si no hay directorio detectado, usar alternativas inteligentes
         if not self.current_directory or not os.path.exists(self.current_directory):
-            self.current_directory = self.get_smart_directory()
+            self.current_directory = self.get_directory_from_fallback()
         
         if self.current_directory and os.path.exists(self.current_directory):
             success = self.try_open_with_editor()

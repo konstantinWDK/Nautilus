@@ -5,6 +5,82 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.3.0] - 2025-10-26
+
+### 🚀 Mejoras de Alta Prioridad
+
+#### Migración a python-xlib para Reducción de Dependencias Externas
+- **Implementado sistema nativo de detección de ventanas**: Uso de `python-xlib` para operaciones X11 nativas
+- **Eliminación de dependencias externas**: Ya no requiere `xdotool` y `xprop` para detección de foco
+- **Nueva función `is_nautilus_focused_native()`**: Detección más rápida y eficiente usando X11 nativo
+- **Sistema de fallback robusto**: Mantiene compatibilidad con métodos anteriores si python-xlib falla
+
+#### Sistema de Logging Estructurado para Debugging
+- **Logging estructurado completo**: Sistema de logging con archivo y consola
+- **Ubicación del log**: `~/.local/share/nautilus-vscode-widget/widget.log`
+- **Características avanzadas**:
+  - Timestamps automáticos
+  - Niveles de log (INFO, WARNING, ERROR, DEBUG)
+  - Formato estructurado para fácil análisis
+  - Logging tanto en archivo como en consola
+
+#### Validación de Configuraciones Corruptas
+- **Sistema robusto de validación**: Validación completa de configuración JSON
+- **Características de validación**:
+  - Validación de tipos de datos para todos los campos
+  - Validación de formato de colores hexadecimales
+  - Sanitización automática de valores inválidos
+  - Fallback a valores por defecto en caso de error
+  - Logging detallado de problemas de configuración
+
+### 🔧 Correcciones Técnicas
+
+#### Problemas de Visibilidad Resueltos
+- **Eliminación de transparencia problemática**: Corregido problema donde el widget no era visible
+- **Widget siempre visible**: Configurado para aparecer desde el inicio en posición central
+- **Compatibilidad mejorada**: Funciona correctamente en sistemas sin soporte de transparencia
+
+#### Corrección de Warnings de Deprecación
+- **Métodos modernos para dimensiones de pantalla**: Reemplazado `Gdk.Screen.get_width()` y `Gdk.Screen.get_height()`
+- **Uso de `Gdk.Display` y `Gdk.Monitor`**: Implementación de métodos modernos sin warnings
+- **Suprimir warnings temporalmente**: Uso de context managers para warnings de deprecación
+
+### 📊 Beneficios de las Mejoras
+
+#### Rendimiento Mejorado
+- **Reducción de subprocess**: Menos llamadas externas a `xdotool` y `xprop`
+- **Detección más rápida**: python-xlib es más rápido que subprocess
+- **Menor uso de CPU**: Operaciones nativas más eficientes
+
+#### Mantenibilidad
+- **Debugging mejorado**: Logging estructurado facilita la resolución de problemas
+- **Configuración robusta**: No más fallos por archivos de configuración corruptos
+- **Código más limpio**: Separación clara entre funcionalidades
+
+#### Experiencia de Usuario
+- **Inicio más confiable**: Validación previene errores de configuración
+- **Diagnóstico mejorado**: Logs detallados para troubleshooting
+- **Compatibilidad mantenida**: Sistema de fallback garantiza funcionamiento
+
+### 🔧 Cambios Técnicos
+
+#### Nuevas Dependencias
+- `python-xlib` - Para operaciones nativas de X11
+
+#### Nuevas Funciones
+- `setup_logging()` - Sistema de logging estructurado
+- `validate_config()` - Validación robusta de configuración
+- `is_valid_color()` - Validación de formatos de color
+- `is_nautilus_focused_native()` - Detección nativa de ventanas
+- `check_nautilus_focus_fallback()` - Sistema de respaldo
+
+#### Archivos Modificados
+- `nautilus-vscode-widget.py` - Código principal actualizado a versión 3.3.0
+- `requirements.txt` - Dependencias actualizadas
+- `install.sh` - Versión actualizada a 3.3
+
+---
+
 ## [3.2.3] - 2025-01-26
 
 ### ⚡ Optimización de Rendimiento

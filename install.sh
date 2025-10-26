@@ -4,7 +4,7 @@
 # Este script crea un acceso directo en el menú de aplicaciones
 
 echo "====================================================="
-echo "  Instalación de Nautilus VSCode Widget v3.1"
+echo "  Instalación de Nautilus VSCode Widget v3.3.0"
 echo "====================================================="
 echo ""
 

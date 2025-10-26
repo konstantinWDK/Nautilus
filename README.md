@@ -1,11 +1,11 @@
 # Nautilus VSCode Widget - Botón Flotante Inteligente
 
-[![Version](https://img.shields.io/badge/version-3.2.3-blue.svg)](https://github.com/konstantinWDK/nautilus-vscode-widget)
+[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/konstantinWDK/nautilus-vscode-widget)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus directamente en VSCode con un solo click. Aparece solo cuando lo necesitas.
 
-> **📢 Nueva versión 3.2.3**: Optimización mayor de rendimiento - 75% menos CPU, 85% menos llamadas subprocess. Ver [CHANGELOG.md](CHANGELOG.md) para detalles.
+> **📢 Nueva versión 3.3.0**: Migración a python-xlib, logging estructurado y validación robusta de configuración. Ver [CHANGELOG.md](CHANGELOG.md) para detalles.
 
 ## ✨ Características Principales
 
@@ -165,14 +165,15 @@ Archivo de autostart (si está habilitado):
 - Python 3
 - GTK+ 3
 - cairo (para transparencia)
-- xdotool (para detección de ventanas)
-- xprop (para propiedades de ventana)
+- python-xlib (para detección nativa de ventanas)
+- xdotool (para detección de ventanas - fallback)
+- xprop (para propiedades de ventana - fallback)
 - gdbus (para comunicación con Nautilus)
 - VSCode o compatible (code, code-insiders, codium, vscodium)
 
 Instalar dependencias en Ubuntu/Debian:
 ```bash
-sudo apt install python3-gi gir1.2-gtk-3.0 xdotool x11-utils
+sudo apt install python3-gi gir1.2-gtk-3.0 python3-xlib xdotool x11-utils
 ```
 
 ## 🐛 Solución de Problemas
