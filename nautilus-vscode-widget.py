@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.2"
+VERSION = "3.3.4"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -257,19 +257,25 @@ class FloatingButtonApp:
         self.window.set_decorated(False)
         self.window.set_keep_above(True)
 
-        # Configuración adaptada según el entorno (v3.3.2 fix para drag en Wayland)
+        # Configuración adaptativa para X11 y Wayland (v3.3.4 mejorado)
         if self.env['display_server'] == 'wayland':
-            # En Wayland, usar DOCK permite drag y no requiere focus
+            # En Wayland: usar DOCK sin padre temporal (más compatible)
             self.window.set_type_hint(Gdk.WindowTypeHint.DOCK)
+            # En Wayland, usar DOCK sin padre temporal funciona mejor
+            # No usar set_transient_for en Wayland para evitar errores
+            self.window.set_skip_taskbar_hint(True)
+            self.window.set_skip_pager_hint(True)
+            self.window.set_accept_focus(True)  # En Wayland necesitamos focus para drag
+            self.window.set_property("can-focus", True)
+            # Forzar que la ventana sea completamente transparente para eventos
+            self.window.set_app_paintable(True)
         else:
-            # En X11, UTILITY funciona bien
+            # En X11: usar UTILITY sin padre
             self.window.set_type_hint(Gdk.WindowTypeHint.UTILITY)
-
-        self.window.set_skip_taskbar_hint(True)
-        self.window.set_skip_pager_hint(True)
-        # No desactivar focus en Wayland (causa problemas de drag)
-        if self.env['display_server'] != 'wayland':
-            self.window.set_accept_focus(False)
+            self.window.set_skip_taskbar_hint(True)
+            self.window.set_skip_pager_hint(True)
+            self.window.set_accept_focus(False)  # No aceptar foco para evitar problemas
+            self.window.set_property("can-focus", False)
 
         # Set window size - botón muy compacto
         self.button_size = 36
@@ -581,32 +587,50 @@ class FloatingButtonApp:
         # Try to load VSCode icon, fallback to SVG or emoji
         icon_loaded = False
         try:
-            # Try to load VSCode icon from system
+            # Try to load VSCode icon from system with more comprehensive search
             icon_theme = Gtk.IconTheme.get_default()
             vscode_icon_names = [
                 'com.visualstudio.code',
                 'vscode',
                 'visual-studio-code',
-                'code'
+                'code',
+                'code-binary',
+                'visual-studio',
+                'com.microsoft.vscode',
+                'vscodium',
+                'com.vscodium.codium'
             ]
 
             for icon_name in vscode_icon_names:
                 if icon_theme.has_icon(icon_name):
-                    icon = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.LARGE_TOOLBAR)
-                    icon.set_pixel_size(24)
-                    box.pack_start(icon, True, True, 0)
-                    icon_loaded = True
-                    break
+                    try:
+                        icon = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.LARGE_TOOLBAR)
+                        icon.set_pixel_size(24)
+                        box.pack_start(icon, True, True, 0)
+                        icon_loaded = True
+                        self.logger.info(f"Icono cargado: {icon_name}")
+                        break
+                    except Exception as e:
+                        self.logger.warning(f"Error cargando icono {icon_name}: {e}")
+                        continue
         except Exception as e:
-            print(f"No se pudo cargar icono del sistema: {e}")
+            self.logger.error(f"No se pudo cargar icono del sistema: {e}")
 
-        # If icon not found, try custom SVG path
+        # If icon not found, try custom SVG path with more locations
         if not icon_loaded:
             custom_icon_paths = [
                 '/usr/share/pixmaps/vscode.png',
                 '/usr/share/icons/hicolor/256x256/apps/code.png',
+                '/usr/share/icons/hicolor/48x48/apps/code.png',
+                '/usr/share/icons/hicolor/32x32/apps/code.png',
                 '/var/lib/snapd/desktop/applications/code_code.desktop',
-                os.path.expanduser('~/.local/share/icons/vscode.png')
+                '/snap/code/current/meta/gui/com.visualstudio.code.png',
+                '/opt/visual-studio-code/resources/app/resources/linux/code.png',
+                os.path.expanduser('~/.local/share/icons/vscode.png'),
+                os.path.expanduser('~/.local/share/icons/hicolor/256x256/apps/code.png'),
+                # Try to use the project's icon.svg if available
+                os.path.join(get_executable_dir(), 'icon.svg'),
+                os.path.join(get_executable_dir(), 'icon.png')
             ]
 
             for icon_path in custom_icon_paths:
@@ -616,11 +640,13 @@ class FloatingButtonApp:
                         icon = Gtk.Image.new_from_pixbuf(pixbuf)
                         box.pack_start(icon, True, True, 0)
                         icon_loaded = True
+                        self.logger.info(f"Icono cargado desde archivo: {icon_path}")
                         break
                     except Exception as e:
-                        print(f"Error cargando {icon_path}: {e}")
+                        self.logger.warning(f"Error cargando {icon_path}: {e}")
+                        continue
 
-        # Final fallback: use a styled emoji
+        # Final fallback: use the lightning emoji as requested
         if not icon_loaded:
             icon_label = Gtk.Label()
             icon_label.set_markup('<span font="20" weight="bold" foreground="white">⚡</span>')
@@ -1321,8 +1347,13 @@ class FloatingButtonApp:
             return True
 
         try:
-            # Usar python-xlib para detección nativa (más rápido que subprocess)
-            nautilus_focused = self.is_nautilus_focused_native()
+            # Sistema adaptativo para X11 y Wayland
+            if self.env['display_server'] == 'wayland':
+                # En Wayland: usar método compatible
+                nautilus_focused = self.is_nautilus_focused_wayland()
+            else:
+                # En X11: usar métodos nativos y subprocess
+                nautilus_focused = self.is_nautilus_focused_x11()
 
             # Check if we should show the button
             has_directory = self.current_directory and os.path.exists(self.current_directory)
@@ -1340,11 +1371,51 @@ class FloatingButtonApp:
                     self._adjust_check_intervals(False)
 
         except Exception as e:
-            self.logger.warning(f"Error en detección de foco nativo: {e}")
-            # Fallback a método subprocess si python-xlib falla
-            self.check_nautilus_focus_fallback()
+            self.logger.warning(f"Error en detección de foco: {e}")
+            # Fallback seguro
+            if self.is_nautilus_focused:
+                self.is_nautilus_focused = False
+                self.fade_out()
+                self._adjust_check_intervals(False)
 
         return True  # Continue timer
+
+    def is_nautilus_focused_x11(self):
+        """Check if Nautilus is focused in X11 environment"""
+        try:
+            # Primero intentar con python-xlib (más rápido)
+            if self.env['xlib_available']:
+                nautilus_focused = self.is_nautilus_focused_native()
+                if nautilus_focused:
+                    return True
+            
+            # Fallback a subprocess si python-xlib falla o no está disponible
+            return self.check_nautilus_focus_fallback_x11()
+            
+        except Exception as e:
+            self.logger.warning(f"Error en detección X11: {e}")
+            return False
+
+    def is_nautilus_focused_wayland(self):
+        """Check if Nautilus is focused in Wayland environment"""
+        try:
+            # En Wayland, usar métodos compatibles
+            # 1. Verificar si Nautilus está ejecutándose
+            nautilus_running = self.is_nautilus_running()
+            if not nautilus_running:
+                return False
+            
+            # 2. Usar DBus para detectar ventanas activas (método más confiable en Wayland)
+            nautilus_focused = self.is_nautilus_focused_dbus()
+            if nautilus_focused:
+                return True
+            
+            # 3. Fallback: verificar si hay ventanas de Nautilus visibles
+            return self.has_visible_nautilus_windows()
+            
+        except Exception as e:
+            self.logger.warning(f"Error en detección Wayland: {e}")
+            return False
 
     def is_nautilus_focused_native(self):
         """Check if Nautilus is focused using python-xlib (native X11)"""
@@ -1372,6 +1443,97 @@ class FloatingButtonApp:
             
         except Exception as e:
             self.logger.debug(f"Error en detección nativa: {e}")
+            return False
+
+    def check_nautilus_focus_fallback_x11(self):
+        """Fallback method for X11 using subprocess"""
+        try:
+            # Usar caché para subprocess
+            def get_active_window():
+                result = subprocess.run(
+                    ['xdotool', 'getactivewindow'],
+                    capture_output=True,
+                    text=True,
+                    timeout=1
+                )
+                return result.stdout.strip() if result.returncode == 0 else None
+
+            window_id = self.subprocess_cache.get('active_window', get_active_window)
+
+            if not window_id:
+                return False
+
+            # Usar caché para window class
+            def get_window_class():
+                result = subprocess.run(
+                    ['xprop', '-id', window_id, 'WM_CLASS'],
+                    capture_output=True,
+                    text=True,
+                    timeout=1
+                )
+                return result.stdout.strip().lower() if result.returncode == 0 else ""
+
+            window_class = self.subprocess_cache.get(f'window_class_{window_id}', get_window_class)
+            return 'nautilus' in window_class
+
+        except Exception as e:
+            self.logger.error(f"Error en fallback X11: {e}")
+            return False
+
+    def is_nautilus_running(self):
+        """Check if Nautilus process is running"""
+        try:
+            result = subprocess.run(
+                ['pgrep', '-x', 'nautilus'],
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def is_nautilus_focused_dbus(self):
+        """Check if Nautilus is focused using DBus (compatible con Wayland)"""
+        try:
+            # Intentar obtener información de ventanas activas via DBus
+            result = subprocess.run(
+                ['gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+                 '--object-path', '/org/gnome/Shell', '--method', 'org.gnome.Shell.Eval',
+                 'global.display.focus_window ? global.display.focus_window.get_wm_class() : ""'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                output = result.stdout.strip()
+                # El formato es: (<'nautilus'>, true) o similar
+                return 'nautilus' in output.lower()
+            
+            return False
+            
+        except Exception as e:
+            self.logger.debug(f"Error en DBus focus detection: {e}")
+            return False
+
+    def has_visible_nautilus_windows(self):
+        """Check if there are visible Nautilus windows (fallback para Wayland)"""
+        try:
+            # Usar DBus para listar ventanas de Nautilus
+            result = subprocess.run(
+                ['gdbus', 'call', '--session', '--dest', 'org.gnome.Nautilus',
+                 '--object-path', '/org/gnome/Nautilus', '--method', 'org.freedesktop.DBus.Introspectable.Introspect'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            # Si podemos comunicarnos con Nautilus via DBus, probablemente esté ejecutándose
+            return result.returncode == 0
+            
+        except Exception as e:
+            self.logger.debug(f"Error verificando ventanas Nautilus: {e}")
             return False
 
     def check_nautilus_focus_fallback(self):

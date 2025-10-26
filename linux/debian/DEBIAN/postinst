@@ -3,7 +3,7 @@ set -e
 
 case "$1" in
     configure)
-        echo "✅ Nautilus VSCode Widget 3.3.2 instalado (Fix drag Wayland)"
+        echo "✅ Nautilus VSCode Widget 3.3.3 instalado (Universal)"
         ;;
 esac
 

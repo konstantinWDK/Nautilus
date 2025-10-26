@@ -5,6 +5,40 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.3.4] - 2025-10-26
+
+### 🐛 Correcciones para Ubuntu 24
+
+#### Fix: Icono de trueno en lugar de VSCode
+- **Problema**: En Ubuntu 24 con VSCode instalado via Snap, aparecía el emoji ⚡
+- **Causa**: Sistema de detección de iconos no encontraba VSCode en Snap
+- **Solución**: Mejorado sistema de búsqueda de iconos con más ubicaciones
+  - Añadidos nombres de iconos: `com.microsoft.vscode`, `vscodium`, `com.vscodium.codium`
+  - Añadidas rutas de Snap: `/snap/code/current/meta/gui/com.visualstudio.code.png`
+  - Añadidas rutas de Flatpak: `/var/lib/flatpak/app/com.visualstudio.code/current/active/export/bin/com.visualstudio.code`
+  - Mejor logging de iconos cargados
+
+#### Fix: Widget aparece en barra de tareas
+- **Problema**: En Ubuntu 24, el widget aparecía en la barra de tareas
+- **Causa**: Configuración `WindowTypeHint.DOCK` causaba problemas en Ubuntu 24
+- **Solución**: Cambiado a `WindowTypeHint.UTILITY` con configuración mejorada
+  - `set_accept_focus(False)` para evitar captura de foco
+  - `set_property("can-focus", False)` para no aparecer en switcher
+  - Mantiene `set_skip_taskbar_hint(True)` y `set_skip_pager_hint(True)`
+
+### ⚡ Mejorado
+
+#### Sistema de Iconos
+- **Búsqueda exhaustiva**: 9 nombres de iconos diferentes para VSCode
+- **Rutas adicionales**: 12 ubicaciones diferentes para iconos de archivo
+- **Logging detallado**: Información sobre qué icono se está cargando
+- **Fallback mantenido**: Si no encuentra icono, usa emoji ⚡ como solicitado
+
+#### Compatibilidad Ubuntu 24
+- **Configuración de ventana optimizada**: Mejor comportamiento en entornos modernos
+- **Sin interferencia con barra de tareas**: Ejecución completamente en segundo plano
+- **Arrastre mejorado**: Funciona correctamente en Ubuntu 24
+
 ## [3.3.2] - 2025-10-26
 
 ### 🐛 Corrección Crítica
