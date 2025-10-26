@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.2.2"
+VERSION = "3.2.3"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -17,6 +17,30 @@ import subprocess
 import os
 import re
 import json
+import time
+
+
+class SubprocessCache:
+    """Cache para resultados de subprocess con TTL"""
+    def __init__(self, ttl=1.0):
+        self.cache = {}
+        self.ttl = ttl
+
+    def get(self, key, func):
+        """Obtener resultado cacheado o ejecutar función"""
+        now = time.time()
+        if key in self.cache:
+            result, timestamp = self.cache[key]
+            if now - timestamp < self.ttl:
+                return result
+
+        result = func()
+        self.cache[key] = (result, now)
+        return result
+
+    def clear(self):
+        """Limpiar caché"""
+        self.cache.clear()
 
 
 class FloatingButtonApp:
@@ -40,6 +64,14 @@ class FloatingButtonApp:
         self.favorite_buttons_visible = False
         self.expand_animation_progress = 0.0
         self.drag_update_pending = False  # Para throttle de actualización durante drag
+
+        # Optimización: Sistema de caché y intervalos adaptativos
+        self.subprocess_cache = SubprocessCache(ttl=1.0)  # 1 segundo de caché
+        self.check_focus_interval = 200  # Intervalo actual para check_nautilus_focus
+        self.update_dir_interval = 500   # Intervalo actual para update_current_directory
+        self.focus_timer_id = None
+        self.dir_timer_id = None
+        self.recent_activity = False  # Flag para z-order check
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -110,11 +142,11 @@ class FloatingButtonApp:
                               Gdk.EventMask.BUTTON_RELEASE_MASK |
                               Gdk.EventMask.POINTER_MOTION_MASK)
 
-        # Start monitoring Nautilus windows and focus
-        GLib.timeout_add(500, self.update_current_directory)
-        GLib.timeout_add(200, self.check_nautilus_focus)
-        # Timer periódico para asegurar z-order correcto (cada 2 segundos)
-        GLib.timeout_add(2000, self._periodic_zorder_check)
+        # Start monitoring Nautilus windows and focus con intervalos adaptativos
+        self.dir_timer_id = GLib.timeout_add(self.update_dir_interval, self.update_current_directory)
+        self.focus_timer_id = GLib.timeout_add(self.check_focus_interval, self.check_nautilus_focus)
+        # Timer periódico para asegurar z-order correcto (cada 5 segundos, solo si hay actividad)
+        GLib.timeout_add(5000, self._periodic_zorder_check)
 
         self.window.connect('destroy', Gtk.main_quit)
 
@@ -589,12 +621,20 @@ class FloatingButtonApp:
         return False  # No repetir
 
     def _periodic_zorder_check(self):
-        """Chequeo periódico para mantener el z-order correcto"""
+        """Chequeo periódico para mantener el z-order correcto - solo si hay actividad reciente"""
+        # Solo verificar si hubo actividad reciente
+        if not self.recent_activity:
+            return True  # Continuar timer pero sin hacer nada
+
+        # Resetear flag de actividad
+        self.recent_activity = False
+
         # Solo corregir si ambas ventanas están visibles
         if (self.window_opacity > 0 and
             hasattr(self, 'favorites_window') and
             self.favorites_window.get_visible()):
             self._ensure_correct_zorder()
+
         return True  # Continuar el timer
 
     def on_add_folder_clicked(self, button):
@@ -961,6 +1001,8 @@ class FloatingButtonApp:
             x = int(event.x_root - self.drag_offset_x)
             y = int(event.y_root - self.drag_offset_y)
             self.window.move(x, y)
+            # Marcar actividad para z-order check
+            self.recent_activity = True
             # Actualizar posiciones de favoritos de forma sincronizada
             self._update_favorites_during_drag(x, y)
 
@@ -971,62 +1013,97 @@ class FloatingButtonApp:
             if not self.is_nautilus_focused or self.window_opacity < 1.0:
                 self.is_nautilus_focused = True
                 self.fade_in()
+            self._adjust_check_intervals(True)
             return True
 
         try:
-            # Get the active window ID first
-            window_id_result = subprocess.run(
-                ['xdotool', 'getactivewindow'],
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
+            # Usar caché para subprocess
+            def get_active_window():
+                result = subprocess.run(
+                    ['xdotool', 'getactivewindow'],
+                    capture_output=True,
+                    text=True,
+                    timeout=1
+                )
+                return result.stdout.strip() if result.returncode == 0 else None
 
-            if window_id_result.returncode != 0:
+            window_id = self.subprocess_cache.get('active_window', get_active_window)
+
+            if not window_id:
                 if self.is_nautilus_focused:
                     self.is_nautilus_focused = False
                     self.fade_out()
+                    self._adjust_check_intervals(False)
                 return True
 
-            window_id = window_id_result.stdout.strip()
+            # Usar caché para window class
+            def get_window_class():
+                result = subprocess.run(
+                    ['xprop', '-id', window_id, 'WM_CLASS'],
+                    capture_output=True,
+                    text=True,
+                    timeout=1
+                )
+                return result.stdout.strip().lower() if result.returncode == 0 else ""
 
-            # Get window class using xprop
-            class_result = subprocess.run(
-                ['xprop', '-id', window_id, 'WM_CLASS'],
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
+            window_class = self.subprocess_cache.get(f'window_class_{window_id}', get_window_class)
+            nautilus_focused = 'nautilus' in window_class
 
-            if class_result.returncode == 0:
-                window_class = class_result.stdout.strip().lower()
-                nautilus_focused = 'nautilus' in window_class
+            # Check if we should show the button
+            has_directory = self.current_directory and os.path.exists(self.current_directory)
+            should_show = nautilus_focused and has_directory
 
-                # Check if we should show the button
-                has_directory = self.current_directory and os.path.exists(self.current_directory)
-                should_show = nautilus_focused and has_directory
+            # If focus state changed
+            if should_show != self.is_nautilus_focused:
+                self.is_nautilus_focused = should_show
 
-                # If focus state changed
-                if should_show != self.is_nautilus_focused:
-                    self.is_nautilus_focused = should_show
-
-                    if should_show:
-                        self.fade_in()
-                    else:
-                        self.fade_out()
+                if should_show:
+                    self.fade_in()
+                    self._adjust_check_intervals(True)
+                else:
+                    self.fade_out()
+                    self._adjust_check_intervals(False)
 
         except Exception:
             # If xdotool fails, hide button to be safe
             if self.is_nautilus_focused:
                 self.is_nautilus_focused = False
                 self.fade_out()
+                self._adjust_check_intervals(False)
 
         return True  # Continue timer
+
+    def _adjust_check_intervals(self, nautilus_focused):
+        """Ajustar intervalos de timers según el estado de foco"""
+        if nautilus_focused:
+            # Nautilus enfocado: intervalos rápidos
+            new_focus_interval = 200
+            new_dir_interval = 500
+        else:
+            # Nautilus no enfocado: intervalos lentos para ahorrar CPU
+            new_focus_interval = 1000
+            new_dir_interval = 2000
+
+        # Solo reiniciar timers si el intervalo ha cambiado
+        if new_focus_interval != self.check_focus_interval:
+            self.check_focus_interval = new_focus_interval
+            if self.focus_timer_id:
+                GLib.source_remove(self.focus_timer_id)
+            self.focus_timer_id = GLib.timeout_add(self.check_focus_interval, self.check_nautilus_focus)
+
+        if new_dir_interval != self.update_dir_interval:
+            self.update_dir_interval = new_dir_interval
+            if self.dir_timer_id:
+                GLib.source_remove(self.dir_timer_id)
+            self.dir_timer_id = GLib.timeout_add(self.update_dir_interval, self.update_current_directory)
 
     def fade_in(self):
         """Smoothly fade in the button with animations"""
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
+
+        # Marcar actividad para z-order check
+        self.recent_activity = True
 
         # Actualizar posiciones de botones secundarios antes de mostrar
         self.update_favorite_positions()
@@ -1038,6 +1115,9 @@ class FloatingButtonApp:
         """Smoothly fade out the button with animations"""
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
+
+        # Marcar actividad para z-order check
+        self.recent_activity = True
 
         # Animación suave de fade out
         self.animate_fade_out()
