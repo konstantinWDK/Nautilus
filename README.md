@@ -36,11 +36,34 @@ Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus 
 
 Descarga el archivo `.deb` desde [Releases](https://github.com/konstantinWDK/nautilus-vscode-widget/releases) e instálalo:
 
+#### ⚠️ IMPORTANTE: Usa apt install, NO dpkg -i
+
+**Método CORRECTO (RECOMENDADO) - Instala dependencias automáticamente:**
 ```bash
-sudo dpkg -i nautilus-vscode-widget_3.0.0_all.deb
+# ✅ ESTE MÉTODO SÍ INSTALA LAS DEPENDENCIAS AUTOMÁTICAMENTE
+sudo apt install ./nautilus-vscode-widget_3.3.0_all.deb
 ```
 
-O haz doble clic en el archivo `.deb` para instalarlo con el gestor de paquetes.
+**Método INCORRECTO - NO instala dependencias:**
+```bash
+# ❌ ESTE MÉTODO NO INSTALA LAS DEPENDENCIAS
+sudo dpkg -i nautilus-vscode-widget_3.3.0_all.deb
+```
+
+#### Método Gráfico
+- Haz doble clic en el archivo `.deb` 
+- Se abrirá el Centro de Software de Ubuntu (o tu gestor de paquetes)
+- Haz clic en "Instalar"
+- **Las dependencias se instalarán automáticamente**
+
+#### Si ya usaste dpkg -i y falló:
+```bash
+# 1. Reparar la instalación
+sudo apt install -f
+
+# 2. Instalar correctamente
+sudo apt install ./nautilus-vscode-widget_3.3.0_all.deb
+```
 
 ### Opción 2: Desde el repositorio
 
@@ -61,8 +84,52 @@ chmod +x install.sh
 cd linux
 ./build-deb.sh
 
-# Instalar el paquete generado
-sudo dpkg -i ../dist/nautilus-vscode-widget_3.0.0_all.deb
+# Instalar el paquete generado (las dependencias se instalarán automáticamente)
+sudo apt install ../dist/nautilus-vscode-widget_3.3.0_all.deb
+```
+
+### ✅ Verificación de Instalación
+
+Después de instalar, verifica que todo funciona:
+
+```bash
+# Verificar que el programa está instalado
+which nautilus-vscode-widget
+
+# Verificar que las dependencias están instaladas
+dpkg -l | grep -E "(python3-gi|python3-xlib|xdotool|wmctrl)"
+
+# Iniciar el widget
+nautilus-vscode-widget
+```
+
+### 📦 Gestión de Dependencias
+
+**Las dependencias se instalarán automáticamente** cuando uses:
+- `sudo apt install ./nautilus-vscode-widget_3.3.0_all.deb` (RECOMENDADO)
+- O el gestor gráfico de paquetes (doble clic en el .deb)
+
+El sistema de paquetes Debian/Ubuntu maneja automáticamente las dependencias especificadas en el archivo `control` del paquete.
+
+#### Dependencias que se instalarán automáticamente:
+- **python3** - Intérprete de Python 3
+- **python3-gi** - Bindings de Python para GTK
+- **python3-gi-cairo** - Soporte Cairo para GTK
+- **gir1.2-gtk-3.0** - Introspection data para GTK 3
+- **python3-xlib** - Biblioteca para operaciones X11 nativas (NUEVO en v3.3.0)
+- **xdotool** - Herramienta para manipular ventanas X11
+- **wmctrl** - Controlador de ventanas X11
+
+#### Comandos útiles para gestión:
+```bash
+# Verificar dependencias instaladas
+dpkg -l | grep -E "(python3-gi|python3-xlib|xdotool|wmctrl)"
+
+# Desinstalar completamente
+sudo apt remove nautilus-vscode-widget
+
+# Verificar que no hay procesos ejecutándose
+ps aux | grep nautilus-vscode-widget
 ```
 
 ## 📖 Uso
