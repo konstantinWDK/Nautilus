@@ -110,6 +110,31 @@ echo "📦 Preparando archivo final..."
 mkdir -p dist
 mv dist/nautilus-vscode-widget dist/nautilus-vscode-widget-portable
 
+# Crear estructura de carpetas para modo portable
+echo "📁 Creando estructura de carpetas portable..."
+mkdir -p dist/conf
+mkdir -p dist/logs
+
+# Crear archivo de información en conf
+cat > dist/conf/README.txt << 'EOF'
+Este directorio contiene la configuración del widget en modo portable.
+
+Archivos:
+- config.json: Configuración del widget (posición, carpetas favoritas, etc.)
+
+El widget creará automáticamente config.json cuando se ejecute por primera vez.
+EOF
+
+# Crear archivo de información en logs
+cat > dist/logs/README.txt << 'EOF'
+Este directorio contiene los logs del widget en modo portable.
+
+Archivos:
+- widget.log: Log de la aplicación con información de ejecución y errores
+
+Los logs se crean automáticamente cuando el widget se ejecuta.
+EOF
+
 # Copiar el icono
 cp ../icon.svg dist/
 
@@ -156,18 +181,43 @@ Un **ejecutable autónomo** que incluye todas las dependencias necesarias. El us
 ./run-widget.sh
 ```
 
-## 📁 Contenido del Paquete
+## 📁 Estructura del Paquete Portable
 
-- `nautilus-vscode-widget-portable` - Ejecutable compilado con PyInstaller
-- `run-widget.sh` - Script de respaldo
-- `icon.svg` - Icono del programa
-- `README-PORTABLE.md` - Esta documentación
+```
+nautilus-vscode-widget-portable/
+├── nautilus-vscode-widget-portable  # Ejecutable principal
+├── run-widget.sh                    # Script de respaldo
+├── icon.svg                         # Icono del programa
+├── conf/                            # Configuración (portable)
+│   ├── config.json                  # Se crea automáticamente
+│   └── README.txt
+├── logs/                            # Logs de la aplicación
+│   ├── widget.log                   # Se crea automáticamente
+│   └── README.txt
+└── README-PORTABLE.md               # Esta documentación
+```
+
+### ⚠️ IMPORTANTE: Carpetas Portable
+
+Esta versión portable guarda **toda la configuración en la carpeta local**:
+- **conf/config.json**: Tu configuración, posición del widget, carpetas favoritas
+- **logs/widget.log**: Logs de ejecución
+
+**Ventajas:**
+- ✅ Puedes mover toda la carpeta a otro lugar o PC
+- ✅ Tu configuración viaja con el ejecutable
+- ✅ No deja rastros en el sistema
+
+**Nota sobre Autostart:**
+- El autostart SÍ se guarda en el sistema (`~/.config/autostart/`)
+- Esto es necesario para que funcione al iniciar sesión
+- Si mueves la carpeta, debes reconfigurar el autostart
 
 ## 🎨 Características
 
 - ✅ **Ejecutable autónomo** - No requiere Python instalado
 - ✅ **Incluye todas las dependencias** - GTK, Xlib, etc.
-- ✅ **No requiere instalación** - Ejecutar y listo
+- ✅ **Verdaderamente portable** - Configuración en carpeta local
 - ✅ **Compatible con Ubuntu/Debian** - Probado en sistemas Linux
 - ✅ **Mismas funcionalidades** - Todas las características de la versión original
 
@@ -197,10 +247,15 @@ cd linux-portable/
 ### Problemas con GTK
 - Si hay errores de GTK, usa el script de respaldo que ejecuta Python directamente
 
+### La configuración no se guarda
+- Verifica que la carpeta `conf/` tenga permisos de escritura
+- Revisa el archivo `logs/widget.log` para ver errores
+
 ---
 
-**Versión: 3.3.0 Portable (PyInstaller)**  
+**Versión: 3.3.0 Portable (PyInstaller)**
 **Compilado con PyInstaller - Incluye todas las dependencias**
+**Configuración portable en carpeta local**
 EOF
 
 echo ""
@@ -210,10 +265,23 @@ echo "╚═══════════════════════�
 echo ""
 echo "📦 Archivos generados en: ./dist/"
 echo ""
+echo "📁 Estructura portable creada:"
+echo "   ├── nautilus-vscode-widget-portable (ejecutable)"
+echo "   ├── run-widget.sh (script de respaldo)"
+echo "   ├── conf/ (configuración portable)"
+echo "   ├── logs/ (logs de ejecución)"
+echo "   ├── icon.svg"
+echo "   └── README-PORTABLE.md"
+echo ""
 echo "🎯 Para usar:"
 echo "   1. Copia la carpeta 'dist/' a cualquier ubicación"
-echo "   2. Ejecuta: ./nautilus-vscode-widget-portable"
+echo "   2. Renombra 'dist/' a 'nautilus-vscode-widget-portable/'"
+echo "   3. Ejecuta: ./nautilus-vscode-widget-portable"
 echo ""
-echo "💡 El ejecutable incluye TODAS las dependencias (Python, GTK, Xlib, etc.)"
+echo "💡 Características de la versión portable:"
+echo "   ✅ Incluye TODAS las dependencias (Python, GTK, Xlib, etc.)"
+echo "   ✅ Configuración en carpeta local (conf/config.json)"
+echo "   ✅ Logs en carpeta local (logs/widget.log)"
+echo "   ✅ Puedes mover toda la carpeta a otro PC"
 echo ""
 echo "✨ ¡El usuario puede ejecutarlo sin instalar nada!"

@@ -48,9 +48,76 @@ class SubprocessCache:
         self.cache.clear()
 
 
+def is_portable_mode():
+    """Detectar si se está ejecutando en modo portable (PyInstaller)"""
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+
+def get_executable_dir():
+    """Obtener el directorio del ejecutable (portable) o del script"""
+    if is_portable_mode():
+        # PyInstaller crea una carpeta temporal en sys._MEIPASS
+        # pero queremos la ubicación del ejecutable
+        return os.path.dirname(sys.executable)
+    else:
+        # Modo normal: directorio del script
+        return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_config_dir():
+    """Obtener directorio de configuración según el modo"""
+    if is_portable_mode():
+        # Modo portable: usar carpeta 'conf' junto al ejecutable
+        config_dir = os.path.join(get_executable_dir(), 'conf')
+    else:
+        # Modo instalado: usar directorio estándar del sistema
+        config_dir = os.path.expanduser('~/.config/nautilus-vscode-widget')
+
+    # Crear el directorio si no existe
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir, exist_ok=True)
+
+    return config_dir
+
+
+def get_log_dir():
+    """Obtener directorio de logs según el modo"""
+    if is_portable_mode():
+        # Modo portable: usar carpeta 'logs' junto al ejecutable
+        log_dir = os.path.join(get_executable_dir(), 'logs')
+    else:
+        # Modo instalado: usar directorio estándar del sistema
+        log_dir = os.path.expanduser('~/.local/share/nautilus-vscode-widget')
+
+    # Crear el directorio si no existe
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+    return log_dir
+
+
+def get_autostart_file():
+    """Obtener ruta del archivo de autostart según el modo"""
+    if is_portable_mode():
+        # En modo portable, el autostart funciona diferente
+        # Usamos el archivo de autostart del sistema pero apuntando al ejecutable portable
+        autostart_dir = os.path.expanduser('~/.config/autostart')
+        if not os.path.exists(autostart_dir):
+            os.makedirs(autostart_dir, exist_ok=True)
+        return os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
+    else:
+        # Modo instalado normal
+        autostart_dir = os.path.expanduser('~/.config/autostart')
+        if not os.path.exists(autostart_dir):
+            os.makedirs(autostart_dir, exist_ok=True)
+        return os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
+
+
 class FloatingButtonApp:
     def __init__(self):
-        self.config_file = os.path.expanduser('~/.config/nautilus-vscode-widget/config.json')
+        # Configurar rutas según el modo (portable o instalado)
+        self.is_portable = is_portable_mode()
+        self.config_file = os.path.join(get_config_dir(), 'config.json')
         self.setup_logging()
         self.load_config()
 
@@ -165,6 +232,11 @@ class FloatingButtonApp:
         # Posicionar botones secundarios después de que la ventana esté visible
         # Se hará en el primer fade_in()
 
+        # Forzar la posición guardada después de que la ventana se muestre
+        # Esto previene que el window manager reposicione la ventana
+        GLib.idle_add(self._restore_saved_position)
+        GLib.timeout_add(100, self._restore_saved_position)  # Backup después de 100ms
+
     def set_window_opacity(self, opacity):
         """Set opacity for main window"""
         self.window_opacity = opacity
@@ -224,10 +296,7 @@ class FloatingButtonApp:
 
     def setup_logging(self):
         """Setup structured logging system"""
-        log_dir = os.path.expanduser('~/.local/share/nautilus-vscode-widget')
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
-        
+        log_dir = get_log_dir()
         log_file = os.path.join(log_dir, 'widget.log')
         
         # Configure logging
@@ -735,6 +804,28 @@ class FloatingButtonApp:
             self._ensure_correct_zorder()
 
         return True  # Continuar el timer
+
+    def _restore_saved_position(self):
+        """Forzar la restauración de la posición guardada en la configuración.
+        Esto previene que el window manager reposicione la ventana al mostrarla."""
+        try:
+            # Verificar que no es la primera ejecución
+            if not self.config.get('first_run', True):
+                saved_x = self.config.get('position_x', 100)
+                saved_y = self.config.get('position_y', 100)
+
+                # Obtener posición actual
+                current_x, current_y = self.window.get_position()
+
+                # Solo mover si la posición actual es diferente a la guardada
+                # Tolerancia de 5 píxeles para evitar movimientos innecesarios
+                if abs(current_x - saved_x) > 5 or abs(current_y - saved_y) > 5:
+                    self.window.move(saved_x, saved_y)
+                    self.logger.info(f"Posición restaurada a ({saved_x}, {saved_y}) desde ({current_x}, {current_y})")
+        except Exception as e:
+            self.logger.error(f"Error restaurando posición: {e}")
+
+        return False  # No repetir, solo ejecutar una vez
 
     def on_add_folder_clicked(self, button):
         """Manejar clic en el botón de añadir carpeta"""
@@ -2272,7 +2363,7 @@ class SettingsDialog:
     def check_autostart_enabled(self):
         """Check if autostart is enabled by verifying the .desktop file exists"""
         try:
-            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-widget.desktop')
+            desktop_file = get_autostart_file()
             return os.path.exists(desktop_file)
         except Exception as e:
             print(f"Error verificando autostart: {e}")
@@ -2281,18 +2372,23 @@ class SettingsDialog:
     def enable_autostart(self):
         """Enable autostart by creating .desktop file"""
         try:
-            autostart_dir = os.path.expanduser('~/.config/autostart')
-            if not os.path.exists(autostart_dir):
-                os.makedirs(autostart_dir)
+            desktop_file = get_autostart_file()
 
-            desktop_file = os.path.join(autostart_dir, 'nautilus-vscode-widget.desktop')
-            script_path = os.path.abspath(__file__)
+            # Determinar el comando de ejecución según el modo
+            if self.app.is_portable:
+                # Modo portable: usar el ejecutable
+                exec_path = sys.executable
+                exec_cmd = f'"{exec_path}"'
+            else:
+                # Modo instalado: usar python3 + script
+                script_path = os.path.abspath(__file__)
+                exec_cmd = f'python3 "{script_path}"'
 
             desktop_content = f"""[Desktop Entry]
 Type=Application
 Name=Nautilus VSCode Widget
 Comment=Floating button to open folders in VSCode from Nautilus
-Exec=python3 "{script_path}"
+Exec={exec_cmd}
 Icon=com.visualstudio.code
 Terminal=false
 Hidden=false
@@ -2308,6 +2404,8 @@ StartupNotify=false
             os.chmod(desktop_file, 0o755)
 
             print(f"Autostart habilitado: {desktop_file}")
+            if self.app.is_portable:
+                print(f"Modo portable: ejecutable en {exec_path}")
 
         except Exception as e:
             print(f"Error habilitando autostart: {e}")
@@ -2315,7 +2413,7 @@ StartupNotify=false
     def disable_autostart(self):
         """Disable autostart by removing .desktop file"""
         try:
-            desktop_file = os.path.expanduser('~/.config/autostart/nautilus-vscode-widget.desktop')
+            desktop_file = get_autostart_file()
             if os.path.exists(desktop_file):
                 os.remove(desktop_file)
                 print("Autostart deshabilitado")
