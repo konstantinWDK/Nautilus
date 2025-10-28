@@ -5,9 +5,24 @@
 
 Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus directamente en VSCode con un solo click. Aparece solo cuando lo necesitas.
 
+## 🎥 Demostración en Video
+
+<div align="center">
+  <video width="600" controls>
+    <source src="https://webdesignerk.com/wp-content/uploads/2025/10/uso-nautilus-vscode-widget.mp4" type="video/mp4">
+    Tu navegador no soporta el elemento video.
+  </video>
+  <p><em>Demostración del widget en uso - rápido y fluido</em></p>
+</div>
+
 > **📢 Nueva versión 3.3.6**: Instalador mejorado - versión estable y confiable. Ver [CHANGELOG.md](CHANGELOG.md) para detalles.
 
 ## ✨ Características Principales
+
+<div align="center">
+  <img src="https://webdesignerk.com/wp-content/uploads/2025/10/vista-preview-widget-nautilus-vscode-widget-linux.png" alt="Vista previa del widget Nautilus VSCode" width="400">
+  <p><em>El widget en acción - discreto y elegante</em></p>
+</div>
 
 - **Aparición Inteligente**: Solo se muestra cuando Nautilus está en foco (o siempre si lo prefieres)
 - **Carpetas Favoritas**: Añade y accede rápidamente a tus carpetas favoritas con diseño minimalista
@@ -20,6 +35,11 @@ Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus 
 - **Totalmente Configurable**: Color del botón, comando del editor, visibilidad y más
 - **Inicio Automático**: Opción para iniciar con el sistema
 - **Arrastrable**: Mueve el botón a cualquier posición de la pantalla
+
+<div align="center">
+  <img src="https://webdesignerk.com/wp-content/uploads/2025/10/seleccion-colores-carpetas-repositorios-favoritas.png" alt="Selección de colores para carpetas favoritas" width="400">
+  <p><em>Personalización de colores para cada carpeta favorita</em></p>
+</div>
 
 ## 🎨 Diseño
 
@@ -164,6 +184,11 @@ nautilus-vscode-widget
 - **Hover**: Efecto de brillo al pasar el mouse sobre los botones
 
 ## ⚙️ Configuración
+
+<div align="center">
+  <img src="https://webdesignerk.com/wp-content/uploads/2025/10/configuracion-widget-nautilus-vscode-widget-linux.png" alt="Configuración del widget" width="400">
+  <p><em>Diálogo de configuración con tema oscuro moderno</em></p>
+</div>
 
 Accede a la configuración haciendo click derecho sobre el botón:
 
