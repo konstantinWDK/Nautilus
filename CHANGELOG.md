@@ -5,6 +5,42 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.3.6] - 2025-10-28
+
+### ⚡ Mejorado
+
+#### Instalador Mejorado - Versión Estable
+- **Scripts DEBIAN robustos**: Scripts de instalación completamente reescritos y optimizados
+- **Manejo de errores mejorado**: Detección y recuperación de instalaciones inconsistentes
+- **Mensajes informativos**: Feedback detallado durante todo el proceso de instalación
+- **Compatibilidad garantizada**: Funciona correctamente en Ubuntu 22.04, 24.04 y derivados
+
+#### Sistema de Empaquetado
+- **Scripts preinst/postinst mejorados**: Manejo robusto de actualizaciones y conflictos
+- **Limpieza automática**: Eliminación segura de versiones anteriores
+- **Verificación de archivos**: Comprobación exhaustiva de archivos instalados
+- **Dependencias verificadas**: Validación de dependencias del sistema
+
+#### Experiencia de Instalación
+- **Proceso transparente**: Información clara sobre cada paso de la instalación
+- **Inicio automático**: El widget se inicia automáticamente después de la instalación
+- **Configuración de usuario**: Directorios de configuración creados automáticamente
+- **Base de datos actualizada**: Integración perfecta con el sistema de aplicaciones
+
+### 🔧 Cambiado
+
+#### Scripts DEBIAN
+- **preinst**: Script completamente reescrito con manejo de errores robusto
+- **postinst**: Información detallada y verificación completa de instalación
+- **prerm**: Desinstalación limpia con detención segura de procesos
+- **postrm**: Limpieza completa de archivos de configuración
+
+#### Documentación
+- **README.md actualizado**: Instrucciones claras para instalación correcta
+- **Versión 3.3.6**: Todas las referencias actualizadas a la nueva versión
+- **Instrucciones mejoradas**: Métodos de instalación claros y concisos
+
+
 ## [3.3.4] - 2025-10-26
 
 ### 🐛 Correcciones para Ubuntu 24

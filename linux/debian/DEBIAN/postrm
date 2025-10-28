@@ -1,10 +1,38 @@
 #!/bin/bash
+# postrm script para nautilus-vscode-widget v3.3.6
+# Instalador mejorado - versión estable
+
 set -e
+
+# Colores
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
 
 case "$1" in
     purge)
-        rm -rf /home/*/.config/nautilus-vscode-widget 2>/dev/null || true
-        rm -rf /home/*/.local/share/nautilus-vscode-widget 2>/dev/null || true
+        echo -e "${YELLOW}🧹 Limpiando archivos de configuración de usuario...${NC}"
+        
+        # Limpiar archivos de configuración de todos los usuarios
+        for user_home in /home/*; do
+            if [ -d "$user_home" ]; then
+                rm -rf "$user_home/.config/nautilus-vscode-widget" 2>/dev/null || true
+                rm -rf "$user_home/.local/share/nautilus-vscode-widget" 2>/dev/null || true
+                echo -e "${CYAN}   Limpiado: $user_home${NC}"
+            fi
+        done
+        
+        # Limpiar también para el usuario root
+        rm -rf "/root/.config/nautilus-vscode-widget" 2>/dev/null || true
+        rm -rf "/root/.local/share/nautilus-vscode-widget" 2>/dev/null || true
+        
+        echo -e "${GREEN}✅ Limpieza completada${NC}"
+        ;;
+        
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        echo -e "${CYAN}ℹ️  Operación de mantenimiento completada${NC}"
         ;;
 esac
 

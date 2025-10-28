@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.4"
+VERSION = "3.3.5"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -242,10 +242,10 @@ class FloatingButtonApp:
         self.expand_animation_progress = 0.0
         self.drag_update_pending = False  # Para throttle de actualización durante drag
 
-        # Optimización: Sistema de caché y intervalos adaptativos (v3.3.1 optimizado)
+        # Optimización: Sistema de caché y intervalos adaptativos (v3.3.5 optimizado - widget siempre visible)
         self.subprocess_cache = SubprocessCache(ttl=5.0, max_size=50)  # 5 segundos de caché, máximo 50 entradas
-        self.check_focus_interval = 500  # Intervalo actual para check_nautilus_focus (optimizado de 200ms a 500ms)
-        self.update_dir_interval = 1000  # Intervalo actual para update_current_directory (optimizado de 500ms a 1000ms)
+        self.check_focus_interval = 1000  # v3.3.5: Intervalo optimizado (1000ms - widget siempre visible)
+        self.update_dir_interval = 1500  # v3.3.5: Intervalo optimizado (1500ms - menos frecuente)
         self.focus_timer_id = None
         self.dir_timer_id = None
         self.recent_activity = False  # Flag para z-order check
@@ -305,7 +305,7 @@ class FloatingButtonApp:
             # Posicionar en el centro de la pantalla para pruebas
             self.config['position_x'] = screen_width // 2 - self.button_size // 2
             self.config['position_y'] = screen_height // 2 - self.button_size // 2
-            # Forzar siempre visible para pruebas
+            # v3.3.5: Widget siempre visible por defecto (optimización)
             self.config['always_visible'] = True
             self.config['first_run'] = False
             self.save_config()
@@ -441,7 +441,7 @@ class FloatingButtonApp:
             'button_color': '#2C2C2C',
             'show_label': False,
             'autostart': False,
-            'always_visible': False,  # Mostrar siempre el widget
+            'always_visible': True,  # Widget siempre visible (v3.3.5 - optimización de rendimiento)
             'favorite_folders': [],  # Lista de carpetas favoritas
             'favorite_colors': {}  # Diccionario de colores para carpetas favoritas
         }
@@ -1337,22 +1337,26 @@ class FloatingButtonApp:
             self._update_favorites_during_drag(x, y)
 
     def check_nautilus_focus(self):
-        """Check if Nautilus window is currently focused and has valid directory"""
-        # Si está configurado para mostrar siempre, mantener visible
-        if self.config.get('always_visible', False):
+        """Check if Nautilus window is currently focused and has valid directory
+        v3.3.5: Optimizado - Widget siempre visible, sin dependencia de ventanas"""
+
+        # v3.3.5: Widget siempre visible - verificación simplificada
+        if self.config.get('always_visible', True):
+            # Mantener widget siempre visible
             if not self.is_nautilus_focused or self.window_opacity < 1.0:
                 self.is_nautilus_focused = True
                 self.fade_in()
+
+            # Usar intervalos optimizados (menos frecuentes = menos CPU)
             self._adjust_check_intervals(True)
             return True
 
+        # Código legacy para compatibilidad (si se desactiva always_visible manualmente)
         try:
             # Sistema adaptativo para X11 y Wayland
             if self.env['display_server'] == 'wayland':
-                # En Wayland: usar método compatible
                 nautilus_focused = self.is_nautilus_focused_wayland()
             else:
-                # En X11: usar métodos nativos y subprocess
                 nautilus_focused = self.is_nautilus_focused_x11()
 
             # Check if we should show the button
@@ -1372,7 +1376,6 @@ class FloatingButtonApp:
 
         except Exception as e:
             self.logger.warning(f"Error en detección de foco: {e}")
-            # Fallback seguro
             if self.is_nautilus_focused:
                 self.is_nautilus_focused = False
                 self.fade_out()
@@ -1595,15 +1598,17 @@ class FloatingButtonApp:
                 self._adjust_check_intervals(False)
 
     def _adjust_check_intervals(self, nautilus_focused):
-        """Ajustar intervalos de timers según el estado de foco (v3.3.1 optimizado)"""
-        if nautilus_focused:
-            # Nautilus enfocado: intervalos moderados (optimizado para reducir CPU)
-            new_focus_interval = 500   # Optimizado: 200ms -> 500ms
-            new_dir_interval = 1000    # Optimizado: 500ms -> 1000ms
+        """Ajustar intervalos de timers según el estado de foco (v3.3.5 optimizado)
+        Con widget siempre visible, usamos intervalos más espaciados para mejor rendimiento"""
+
+        if nautilus_focused or self.config.get('always_visible', True):
+            # v3.3.5: Widget siempre visible - intervalos optimizados
+            new_focus_interval = 1000   # v3.3.5: 500ms -> 1000ms (widget siempre visible)
+            new_dir_interval = 1500     # v3.3.5: 1000ms -> 1500ms (menos frecuente)
         else:
-            # Nautilus no enfocado: intervalos muy lentos para ahorrar CPU
-            new_focus_interval = 2000  # Optimizado: 1000ms -> 2000ms
-            new_dir_interval = 3000    # Optimizado: 2000ms -> 3000ms
+            # Nautilus no enfocado: intervalos lentos para ahorrar CPU (modo legacy)
+            new_focus_interval = 3000   # v3.3.5: 2000ms -> 3000ms
+            new_dir_interval = 4000     # v3.3.5: 3000ms -> 4000ms
 
         # Solo reiniciar timers si el intervalo ha cambiado
         if new_focus_interval != self.check_focus_interval:
@@ -2488,24 +2493,6 @@ class SettingsDialog:
         autostart_info.set_margin_start(20)
         box.pack_start(autostart_info, False, False, 0)
 
-        # Always visible option
-        always_visible_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        always_visible_label = Gtk.Label(label="Mostrar siempre:")
-        always_visible_label.set_width_chars(20)
-        always_visible_label.set_xalign(0)
-        self.always_visible_switch = Gtk.Switch()
-        self.always_visible_switch.set_active(self.app.config.get('always_visible', False))
-        always_visible_box.pack_start(always_visible_label, False, False, 0)
-        always_visible_box.pack_start(self.always_visible_switch, False, False, 0)
-        box.pack_start(always_visible_box, False, False, 0)
-
-        # Always visible info
-        always_visible_info = Gtk.Label()
-        always_visible_info.set_markup('<span font="8" style="italic">💡 El botón estará visible siempre, no solo con Nautilus</span>')
-        always_visible_info.set_xalign(0)
-        always_visible_info.set_margin_start(20)
-        box.pack_start(always_visible_info, False, False, 0)
-
         # Info
         info = Gtk.Label()
         info.set_markup(
@@ -2635,9 +2622,6 @@ class SettingsDialog:
         self.app.config['button_color'] = f'#{int(rgba.red*255):02x}{int(rgba.green*255):02x}{int(rgba.blue*255):02x}'
 
         self.app.config['show_label'] = self.show_label_switch.get_active()
-
-        # Handle always visible
-        self.app.config['always_visible'] = self.always_visible_switch.get_active()
 
         # Handle autostart
         autostart_enabled = self.autostart_switch.get_active()

@@ -1,11 +1,11 @@
 # Nautilus VSCode Widget - Botón Flotante Inteligente
 
-[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/konstantinWDK/nautilus-vscode-widget)
+[![Version](https://img.shields.io/badge/version-3.3.6-blue.svg)](https://github.com/konstantinWDK/nautilus-vscode-widget)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Un botón flotante elegante y moderno que te permite abrir carpetas de Nautilus directamente en VSCode con un solo click. Aparece solo cuando lo necesitas.
 
-> **📢 Nueva versión 3.3.0**: Migración a python-xlib, logging estructurado y validación robusta de configuración. Ver [CHANGELOG.md](CHANGELOG.md) para detalles.
+> **📢 Nueva versión 3.3.6**: Instalador mejorado - versión estable y confiable. Ver [CHANGELOG.md](CHANGELOG.md) para detalles.
 
 ## ✨ Características Principales
 
@@ -41,13 +41,13 @@ Descarga el archivo `.deb` desde [Releases](https://github.com/konstantinWDK/nau
 **Método CORRECTO (RECOMENDADO) - Instala dependencias automáticamente:**
 ```bash
 # ✅ ESTE MÉTODO SÍ INSTALA LAS DEPENDENCIAS AUTOMÁTICAMENTE
-sudo apt install ./nautilus-vscode-widget_3.3.0_all.deb
+sudo apt install ./nautilus-vscode-widget_3.3.6_all.deb
 ```
 
 **Método INCORRECTO - NO instala dependencias:**
 ```bash
 # ❌ ESTE MÉTODO NO INSTALA LAS DEPENDENCIAS
-sudo dpkg -i nautilus-vscode-widget_3.3.0_all.deb
+sudo dpkg -i nautilus-vscode-widget_3.3.6_all.deb
 ```
 
 #### Método Gráfico
@@ -62,7 +62,7 @@ sudo dpkg -i nautilus-vscode-widget_3.3.0_all.deb
 sudo apt install -f
 
 # 2. Instalar correctamente
-sudo apt install ./nautilus-vscode-widget_3.3.0_all.deb
+sudo apt install ./nautilus-vscode-widget_3.3.6_all.deb
 ```
 
 ### Opción 2: Desde el repositorio

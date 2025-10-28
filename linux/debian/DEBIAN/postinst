@@ -1,9 +1,110 @@
 #!/bin/bash
+# postinst script para nautilus-vscode-widget v3.3.6
+# Instalador mejorado - versión estable
+
 set -e
+
+# Colores
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
 
 case "$1" in
     configure)
-        echo "✅ Nautilus VSCode Widget 3.3.3 instalado (Universal)"
+        echo -e "${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║    Nautilus VSCode Widget v3.3.6 - Instalación Exitosa      ║${NC}"
+        echo -e "${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+
+        echo -e "${CYAN}ℹ️  🔍 Verificando archivos instalados...${NC}"
+        
+        # Verificar archivos instalados
+        if [ -f "/usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py" ]; then
+            echo -e "${GREEN}✅   ✓ /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py${NC}"
+        else
+            echo -e "${RED}❌   ✗ /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py${NC}"
+        fi
+        
+        if [ -f "/usr/bin/nautilus-vscode-widget" ]; then
+            echo -e "${GREEN}✅   ✓ /usr/bin/nautilus-vscode-widget${NC}"
+        else
+            echo -e "${RED}❌   ✗ /usr/bin/nautilus-vscode-widget${NC}"
+        fi
+        
+        if [ -f "/usr/share/applications/nautilus-vscode-widget.desktop" ]; then
+            echo -e "${GREEN}✅   ✓ /usr/share/applications/nautilus-vscode-widget.desktop${NC}"
+        else
+            echo -e "${RED}❌   ✗ /usr/share/applications/nautilus-vscode-widget.desktop${NC}"
+        fi
+
+        echo -e "${CYAN}ℹ️  🔍 Verificando dependencias del sistema...${NC}"
+        
+        # Verificar dependencias principales
+        if command -v python3 &> /dev/null; then
+            PYTHON_VERSION=$(python3 --version 2>/dev/null | cut -d' ' -f2)
+            echo -e "${GREEN}✅   ✓ Python3: Python $PYTHON_VERSION${NC}"
+        else
+            echo -e "${RED}❌   ✗ Python3: No instalado${NC}"
+        fi
+        
+        if python3 -c "import gi" &> /dev/null; then
+            echo -e "${GREEN}✅   ✓ PyGObject (GTK3)${NC}"
+        else
+            echo -e "${RED}❌   ✗ PyGObject (GTK3)${NC}"
+        fi
+        
+        if python3 -c "import Xlib" &> /dev/null; then
+            echo -e "${GREEN}✅   ✓ python-xlib${NC}"
+        else
+            echo -e "${YELLOW}ℹ️    ℹ️  python-xlib no instalado (opcional)${NC}"
+        fi
+
+        echo -e "${GREEN}✅ ✨ Instalación completada correctamente${NC}"
+
+        echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${CYAN}  Cómo usar el widget:${NC}"
+        echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${YELLOW}1. Buscar 'Nautilus VSCode Widget' en el menú de aplicaciones${NC}"
+        echo -e "${YELLOW}2. O ejecutar: nautilus-vscode-widget${NC}"
+        echo -e "${YELLOW}3. Click derecho en el widget → Configuración${NC}"
+        echo -e "${YELLOW}4. Activar 'Inicio automático' si lo deseas${NC}"
+        echo ""
+        echo -e "${CYAN}💡 Mejora opcional:${NC}"
+        echo -e "${CYAN}   Para mejor rendimiento en X11:${NC}"
+        echo -e "${CYAN}   nautilus-vscode-widget-install-deps${NC}"
+        echo ""
+
+        # Configurar directorios de usuario
+        echo -e "${CYAN}ℹ️  📁 Configurando directorios de usuario...${NC}"
+        mkdir -p "$HOME/.config/nautilus-vscode-widget" 2>/dev/null || true
+        mkdir -p "$HOME/.local/share/nautilus-vscode-widget" 2>/dev/null || true
+        echo -e "${GREEN}✅   Directorios de usuario creados${NC}"
+
+        # Actualizar base de datos de aplicaciones
+        echo -e "${CYAN}ℹ️  📁 Actualizando base de datos de aplicaciones...${NC}"
+        update-desktop-database /usr/share/applications 2>/dev/null || true
+        echo -e "${GREEN}✅   Base de datos de aplicaciones actualizada${NC}"
+
+        # Intentar iniciar automáticamente
+        echo -e "${CYAN}ℹ️  🚀 Iniciando Nautilus VSCode Widget automáticamente...${NC}"
+        if command -v python3 &> /dev/null && [ -f "/usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py" ]; then
+            timeout 10s python3 /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py &
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅   Widget iniciado automáticamente${NC}"
+            else
+                echo -e "${YELLOW}❌   No se pudo iniciar el widget automáticamente${NC}"
+                echo -e "${CYAN}ℹ️  Puedes iniciarlo manualmente con: nautilus-vscode-widget${NC}"
+            fi
+        else
+            echo -e "${YELLOW}❌   No se pudo iniciar el widget automáticamente${NC}"
+            echo -e "${CYAN}ℹ️  Puedes iniciarlo manualmente con: nautilus-vscode-widget${NC}"
+        fi
+
+        echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}✅ ¡Instalación finalizada! El widget está listo para usar.${NC}"
+        echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
         ;;
 esac
 
