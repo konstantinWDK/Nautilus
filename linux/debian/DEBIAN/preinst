@@ -1,6 +1,6 @@
 #!/bin/bash
-# preinst script para nautilus-vscode-widget v3.3.6
-# Instalador mejorado - versión estable
+# preinst script para nautilus-vscode-widget v3.3.7
+# Optimización de rendimiento - detección bajo demanda
 
 set -e
 
@@ -13,7 +13,7 @@ NC='\033[0m'
 
 case "$1" in
     install|upgrade)
-        echo -e "${CYAN}🔄 Preparando instalación de Nautilus VSCode Widget v3.3.6...${NC}"
+        echo -e "${CYAN}🔄 Preparando instalación de Nautilus VSCode Widget v3.3.7...${NC}"
 
         # Solo detener si es una actualización (para evitar conflictos)
         if [ "$1" = "upgrade" ]; then

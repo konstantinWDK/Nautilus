@@ -1,5 +1,5 @@
 Package: nautilus-vscode-widget
-Version: 3.3.6
+Version: 3.3.7
 Section: utils
 Priority: optional
 Architecture: all
@@ -13,8 +13,8 @@ Description: Botón flotante para abrir carpetas de Nautilus en VSCode
  tienes una ventana de Nautilus activa, permitiéndote abrir la carpeta
  actual en Visual Studio Code con un solo clic.
  .
- Características (v3.3.6 - Instalador mejorado):
-  - Instalador robusto y confiable
+ Características (v3.3.7 - Optimización de Rendimiento):
+  - Detección bajo demanda (cero carga en reposo)
   - Widget siempre visible
   - Sistema de carpetas favoritas
   - Arrastrable a cualquier posición

@@ -6,7 +6,7 @@
 set -e
 
 echo "====================================================="
-echo "  Instalación de Nautilus VSCode Widget v3.3.0"
+echo "  Instalación de Nautilus VSCode Widget v3.3.7"
 echo "====================================================="
 echo ""
 

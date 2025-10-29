@@ -1,6 +1,6 @@
 #!/bin/bash
-# prerm script para nautilus-vscode-widget v3.3.6
-# Instalador mejorado - versión estable
+# prerm script para nautilus-vscode-widget v3.3.7
+# Optimización de rendimiento - detección bajo demanda
 
 set -e
 
