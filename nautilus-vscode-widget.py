@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.5"
+VERSION = "3.3.6"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -242,10 +242,10 @@ class FloatingButtonApp:
         self.expand_animation_progress = 0.0
         self.drag_update_pending = False  # Para throttle de actualización durante drag
 
-        # Optimización: Sistema de caché y intervalos adaptativos (v3.3.5 optimizado - widget siempre visible)
+        # Optimización: Sistema de caché y intervalos adaptativos (v3.3.6 optimizado - widget siempre visible)
         self.subprocess_cache = SubprocessCache(ttl=5.0, max_size=50)  # 5 segundos de caché, máximo 50 entradas
-        self.check_focus_interval = 1000  # v3.3.5: Intervalo optimizado (1000ms - widget siempre visible)
-        self.update_dir_interval = 1500  # v3.3.5: Intervalo optimizado (1500ms - menos frecuente)
+        self.check_focus_interval = 1000  # v3.3.6: Intervalo optimizado (1000ms - widget siempre visible)
+        self.update_dir_interval = 1500  # v3.3.6: Intervalo optimizado (1500ms - menos frecuente)
         self.focus_timer_id = None
         self.dir_timer_id = None
         self.recent_activity = False  # Flag para z-order check
@@ -305,7 +305,7 @@ class FloatingButtonApp:
             # Posicionar en el centro de la pantalla para pruebas
             self.config['position_x'] = screen_width // 2 - self.button_size // 2
             self.config['position_y'] = screen_height // 2 - self.button_size // 2
-            # v3.3.5: Widget siempre visible por defecto (optimización)
+            # v3.3.6: Widget siempre visible por defecto (optimización)
             self.config['always_visible'] = True
             self.config['first_run'] = False
             self.save_config()
@@ -441,7 +441,7 @@ class FloatingButtonApp:
             'button_color': '#2C2C2C',
             'show_label': False,
             'autostart': False,
-            'always_visible': True,  # Widget siempre visible (v3.3.5 - optimización de rendimiento)
+            'always_visible': True,  # Widget siempre visible (v3.3.6 - optimización de rendimiento)
             'favorite_folders': [],  # Lista de carpetas favoritas
             'favorite_colors': {}  # Diccionario de colores para carpetas favoritas
         }
@@ -1338,9 +1338,9 @@ class FloatingButtonApp:
 
     def check_nautilus_focus(self):
         """Check if Nautilus window is currently focused and has valid directory
-        v3.3.5: Optimizado - Widget siempre visible, sin dependencia de ventanas"""
+        v3.3.6: Optimizado - Widget siempre visible, sin dependencia de ventanas"""
 
-        # v3.3.5: Widget siempre visible - verificación simplificada
+        # v3.3.6: Widget siempre visible - verificación simplificada
         if self.config.get('always_visible', True):
             # Mantener widget siempre visible
             if not self.is_nautilus_focused or self.window_opacity < 1.0:
@@ -1598,17 +1598,17 @@ class FloatingButtonApp:
                 self._adjust_check_intervals(False)
 
     def _adjust_check_intervals(self, nautilus_focused):
-        """Ajustar intervalos de timers según el estado de foco (v3.3.5 optimizado)
+        """Ajustar intervalos de timers según el estado de foco (v3.3.6 optimizado)
         Con widget siempre visible, usamos intervalos más espaciados para mejor rendimiento"""
 
         if nautilus_focused or self.config.get('always_visible', True):
-            # v3.3.5: Widget siempre visible - intervalos optimizados
-            new_focus_interval = 1000   # v3.3.5: 500ms -> 1000ms (widget siempre visible)
-            new_dir_interval = 1500     # v3.3.5: 1000ms -> 1500ms (menos frecuente)
+            # v3.3.6: Widget siempre visible - intervalos optimizados
+            new_focus_interval = 1000   # v3.3.6: 500ms -> 1000ms (widget siempre visible)
+            new_dir_interval = 1500     # v3.3.6: 1000ms -> 1500ms (menos frecuente)
         else:
             # Nautilus no enfocado: intervalos lentos para ahorrar CPU (modo legacy)
-            new_focus_interval = 3000   # v3.3.5: 2000ms -> 3000ms
-            new_dir_interval = 4000     # v3.3.5: 3000ms -> 4000ms
+            new_focus_interval = 3000   # v3.3.6: 2000ms -> 3000ms
+            new_dir_interval = 4000     # v3.3.6: 3000ms -> 4000ms
 
         # Solo reiniciar timers si el intervalo ha cambiado
         if new_focus_interval != self.check_focus_interval:
