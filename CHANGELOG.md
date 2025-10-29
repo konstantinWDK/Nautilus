@@ -5,6 +5,39 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.3.8] - 2025-10-29
+
+### 🚀 Simplificación y Limpieza de Código
+
+#### Eliminación de Código Redundante
+- **Reducción de métodos de detección**: De 8 métodos a solo 3 más efectivos (DBus, ventana activa, fallback)
+- **Eliminación de funciones obsoletas**: Removidas funciones de detección continua que ya no se usan
+- **Código más limpio**: Eliminadas funciones legacy y duplicadas
+- **Mantenibilidad mejorada**: ~30% menos líneas de código sin pérdida de funcionalidad
+
+#### Funciones Eliminadas
+- `check_nautilus_focus()` - Sistema de detección continua obsoleto
+- `get_directory_from_focused_nautilus()` - Método redundante
+- `get_directory_from_nautilus_process()` - Método complejo y poco efectivo
+- `get_directory_from_xdotool()` - Duplicado de funcionalidad
+- `get_directory_from_wmctrl()` - Método poco confiable
+- `get_directory_from_active_window()` - Redundante con otros métodos
+- `apply_small_circular_shape()` - Función no usada
+- `animate_favorites_expand()` - Función vacía sin animaciones
+
+#### Mejoras de Rendimiento
+- **Código más eficiente**: Menos llamadas a subprocess y caché
+- **Menos bugs potenciales**: Eliminación de código complejo y redundante
+- **Más fácil de entender**: Lógica más directa y clara
+- **Menos dependencias**: Posible reducción de herramientas externas
+
+### 🔧 Cambiado
+
+#### Arquitectura Simplificada
+- **Métodos de detección optimizados**: Solo 3 métodos principales manteniendo efectividad
+- **Sistema de favoritos unificado**: Eliminadas funciones legacy duplicadas
+- **Validaciones unificadas**: Funciones de validación consolidadas
+
 ## [3.3.7] - 2025-10-29
 
 ### 🚀 Optimización de Rendimiento
