@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.7"
+VERSION = "3.3.8"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -248,6 +248,10 @@ class FloatingButtonApp:
         self.dir_timer_id = None
         self.recent_activity = False  # Flag para z-order check
         self.last_directory_detection = 0  # Timestamp de última detección
+        
+        # CRÍTICO: No iniciar timers de detección - widget siempre visible
+        self.check_focus_interval = 0
+        self.update_dir_interval = 0
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -326,11 +330,16 @@ class FloatingButtonApp:
         # Apply circular shape after window is realized
         self.window.connect('realize', self.apply_circular_shape)
 
-        # Enable dragging
+        # Enable dragging - eventos en la ventana principal
         self.window.connect('button-press-event', self.on_button_press)
         self.window.connect('button-release-event', self.on_button_release)
         self.window.connect('motion-notify-event', self.on_motion)
         self.window.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                              Gdk.EventMask.BUTTON_RELEASE_MASK |
+                              Gdk.EventMask.POINTER_MOTION_MASK)
+        
+        # CRÍTICO: También habilitar eventos en el botón para capturar clics
+        self.button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
                               Gdk.EventMask.BUTTON_RELEASE_MASK |
                               Gdk.EventMask.POINTER_MOTION_MASK)
 
@@ -793,13 +802,6 @@ class FloatingButtonApp:
         # Mostrar el botón
         add_btn.show_all()
 
-    def create_add_button(self, overlay):
-        """Función legacy - usa rebuild_favorites_list en su lugar"""
-        self.create_add_button_internal()
-
-    def create_favorite_buttons(self, overlay):
-        """Función legacy - usa rebuild_favorites_list en su lugar"""
-        self.rebuild_favorites_list()
 
     def create_favorite_button(self, folder_path, index):
         """Crear un botón individual de carpeta favorita en el contenedor unificado"""
@@ -849,18 +851,6 @@ class FloatingButtonApp:
         # Mostrar el botón
         fav_btn.show_all()
 
-    def apply_small_circular_shape(self, widget, size):
-        """Aplicar forma circular a ventanas pequeñas"""
-        radius = size // 2
-        surface = cairo.ImageSurface(cairo.FORMAT_A1, size, size)
-        cr = cairo.Context(surface)
-        cr.set_source_rgba(1, 1, 1, 1)
-        cr.arc(radius, radius, radius, 0, 2 * 3.14159)
-        cr.fill()
-        region = Gdk.cairo_region_create_from_surface(surface)
-        if widget.get_window():
-            widget.get_window().shape_combine_region(region, 0, 0)
-            widget.get_window().input_shape_combine_region(region, 0, 0)
 
     def update_favorite_positions(self):
         """Actualizar las posiciones de los botones favoritos y el botón +"""
@@ -1332,253 +1322,13 @@ class FloatingButtonApp:
             # Actualizar posiciones de favoritos de forma sincronizada
             self._update_favorites_during_drag(x, y)
 
-    def check_nautilus_focus(self):
-        """Función legacy - Widget siempre visible, sin detección continua"""
-        # v3.3.6: Widget siempre visible - sin verificación de foco
-        if not self.is_nautilus_focused or self.window_opacity < 1.0:
-            self.is_nautilus_focused = True
-            self.fade_in()
-        return True  # Continue timer (mantener para compatibilidad)
 
-    def is_nautilus_focused_x11(self):
-        """Check if Nautilus is focused in X11 environment"""
-        try:
-            # Primero intentar con python-xlib (más rápido)
-            if self.env['xlib_available']:
-                nautilus_focused = self.is_nautilus_focused_native()
-                if nautilus_focused:
-                    return True
-            
-            # Fallback a subprocess si python-xlib falla o no está disponible
-            return self.check_nautilus_focus_fallback_x11()
-            
-        except Exception as e:
-            self.logger.warning(f"Error en detección X11: {e}")
-            return False
-
-    def is_nautilus_focused_wayland(self):
-        """Check if Nautilus is focused in Wayland environment"""
-        try:
-            # En Wayland, usar métodos compatibles
-            # 1. Verificar si Nautilus está ejecutándose
-            nautilus_running = self.is_nautilus_running()
-            if not nautilus_running:
-                return False
-            
-            # 2. Usar DBus para detectar ventanas activas (método más confiable en Wayland)
-            nautilus_focused = self.is_nautilus_focused_dbus()
-            if nautilus_focused:
-                return True
-            
-            # 3. Fallback: verificar si hay ventanas de Nautilus visibles
-            return self.has_visible_nautilus_windows()
-            
-        except Exception as e:
-            self.logger.warning(f"Error en detección Wayland: {e}")
-            return False
-
-    def is_nautilus_focused_native(self):
-        """Check if Nautilus is focused using python-xlib (native X11)"""
-        try:
-            d = display.Display()
-            # Obtener ventana enfocada
-            focused_window = d.get_input_focus().focus
-            
-            # Si es un InputOnly window, obtener la ventana padre
-            if focused_window.__class__.__name__ == 'InputOnly':
-                focused_window = focused_window.query_tree().parent
-            
-            # Obtener propiedades de la ventana
-            wm_class = focused_window.get_wm_class()
-            if wm_class:
-                class_name = wm_class[1].lower() if len(wm_class) > 1 else wm_class[0].lower()
-                return 'nautilus' in class_name
-            
-            # Intentar obtener WM_NAME como fallback
-            wm_name = focused_window.get_wm_name()
-            if wm_name:
-                return 'nautilus' in wm_name.lower()
-            
-            return False
-            
-        except Exception as e:
-            self.logger.debug(f"Error en detección nativa: {e}")
-            return False
-
-    def check_nautilus_focus_fallback_x11(self):
-        """Fallback method for X11 using subprocess"""
-        try:
-            # Usar caché para subprocess
-            def get_active_window():
-                result = subprocess.run(
-                    ['xdotool', 'getactivewindow'],
-                    capture_output=True,
-                    text=True,
-                    timeout=1
-                )
-                return result.stdout.strip() if result.returncode == 0 else None
-
-            window_id = self.subprocess_cache.get('active_window', get_active_window)
-
-            if not window_id:
-                return False
-
-            # Usar caché para window class
-            def get_window_class():
-                result = subprocess.run(
-                    ['xprop', '-id', window_id, 'WM_CLASS'],
-                    capture_output=True,
-                    text=True,
-                    timeout=1
-                )
-                return result.stdout.strip().lower() if result.returncode == 0 else ""
-
-            window_class = self.subprocess_cache.get(f'window_class_{window_id}', get_window_class)
-            return 'nautilus' in window_class
-
-        except Exception as e:
-            self.logger.error(f"Error en fallback X11: {e}")
-            return False
-
-    def is_nautilus_running(self):
-        """Check if Nautilus process is running"""
-        try:
-            result = subprocess.run(
-                ['pgrep', '-x', 'nautilus'],
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            return result.returncode == 0
-        except Exception:
-            return False
-
-    def is_nautilus_focused_dbus(self):
-        """Check if Nautilus is focused using DBus (compatible con Wayland)"""
-        try:
-            # Intentar obtener información de ventanas activas via DBus
-            result = subprocess.run(
-                ['gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
-                 '--object-path', '/org/gnome/Shell', '--method', 'org.gnome.Shell.Eval',
-                 'global.display.focus_window ? global.display.focus_window.get_wm_class() : ""'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0 and result.stdout:
-                output = result.stdout.strip()
-                # El formato es: (<'nautilus'>, true) o similar
-                return 'nautilus' in output.lower()
-            
-            return False
-            
-        except Exception as e:
-            self.logger.debug(f"Error en DBus focus detection: {e}")
-            return False
-
-    def has_visible_nautilus_windows(self):
-        """Check if there are visible Nautilus windows (fallback para Wayland)"""
-        try:
-            # Usar DBus para listar ventanas de Nautilus
-            result = subprocess.run(
-                ['gdbus', 'call', '--session', '--dest', 'org.gnome.Nautilus',
-                 '--object-path', '/org/gnome/Nautilus', '--method', 'org.freedesktop.DBus.Introspectable.Introspect'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            # Si podemos comunicarnos con Nautilus via DBus, probablemente esté ejecutándose
-            return result.returncode == 0
-            
-        except Exception as e:
-            self.logger.debug(f"Error verificando ventanas Nautilus: {e}")
-            return False
-
-    def check_nautilus_focus_fallback(self):
-        """Fallback method using subprocess if native detection fails"""
-        try:
-            # Usar caché para subprocess
-            def get_active_window():
-                result = subprocess.run(
-                    ['xdotool', 'getactivewindow'],
-                    capture_output=True,
-                    text=True,
-                    timeout=1
-                )
-                return result.stdout.strip() if result.returncode == 0 else None
-
-            window_id = self.subprocess_cache.get('active_window', get_active_window)
-
-            if not window_id:
-                if self.is_nautilus_focused:
-                    self.is_nautilus_focused = False
-                    self.fade_out()
-                    self._adjust_check_intervals(False)
-                return
-
-            # Usar caché para window class
-            def get_window_class():
-                result = subprocess.run(
-                    ['xprop', '-id', window_id, 'WM_CLASS'],
-                    capture_output=True,
-                    text=True,
-                    timeout=1
-                )
-                return result.stdout.strip().lower() if result.returncode == 0 else ""
-
-            window_class = self.subprocess_cache.get(f'window_class_{window_id}', get_window_class)
-            nautilus_focused = 'nautilus' in window_class
-
-            # Check if we should show the button
-            has_directory = self.current_directory and os.path.exists(self.current_directory)
-            should_show = nautilus_focused and has_directory
-
-            # If focus state changed
-            if should_show != self.is_nautilus_focused:
-                self.is_nautilus_focused = should_show
-
-                if should_show:
-                    self.fade_in()
-                    self._adjust_check_intervals(True)
-                else:
-                    self.fade_out()
-                    self._adjust_check_intervals(False)
-
-        except Exception as e:
-            self.logger.error(f"Error en fallback de detección: {e}")
-            # If xdotool fails, hide button to be safe
-            if self.is_nautilus_focused:
-                self.is_nautilus_focused = False
-                self.fade_out()
-                self._adjust_check_intervals(False)
 
     def _adjust_check_intervals(self, nautilus_focused):
-        """Ajustar intervalos de timers según el estado de foco (v3.3.6 optimizado)
-        Con widget siempre visible, usamos intervalos más espaciados para mejor rendimiento"""
-
-        if nautilus_focused or self.config.get('always_visible', True):
-            # v3.3.6: Widget siempre visible - intervalos optimizados
-            new_focus_interval = 1000   # v3.3.6: 500ms -> 1000ms (widget siempre visible)
-            new_dir_interval = 1500     # v3.3.6: 1000ms -> 1500ms (menos frecuente)
-        else:
-            # Nautilus no enfocado: intervalos lentos para ahorrar CPU (modo legacy)
-            new_focus_interval = 3000   # v3.3.6: 2000ms -> 3000ms
-            new_dir_interval = 4000     # v3.3.6: 3000ms -> 4000ms
-
-        # Solo reiniciar timers si el intervalo ha cambiado
-        if new_focus_interval != self.check_focus_interval:
-            self.check_focus_interval = new_focus_interval
-            if self.focus_timer_id:
-                GLib.source_remove(self.focus_timer_id)
-            self.focus_timer_id = GLib.timeout_add(self.check_focus_interval, self.check_nautilus_focus)
-
-        if new_dir_interval != self.update_dir_interval:
-            self.update_dir_interval = new_dir_interval
-            if self.dir_timer_id:
-                GLib.source_remove(self.dir_timer_id)
-            self.dir_timer_id = GLib.timeout_add(self.update_dir_interval, self.update_current_directory)
+        """Función legacy - Ya no se usan timers de detección continua"""
+        # v3.3.7: Widget siempre visible - sin timers activos
+        # Esta función se mantiene para compatibilidad pero no hace nada
+        pass
 
     def fade_in(self):
         """Smoothly fade in the button with animations"""
@@ -1636,10 +1386,6 @@ class FloatingButtonApp:
             if hasattr(self, 'favorites_window'):
                 self.favorites_window.hide()
 
-    def animate_favorites_expand(self):
-        """Mostrar botones favoritos sin animaciones"""
-        # Sin animaciones - simplemente actualizar posiciones
-        self.update_favorite_positions()
 
     def on_button_right_click(self, widget, event):
         """Show context menu on right click"""
@@ -1792,11 +1538,6 @@ class FloatingButtonApp:
         methods = [
             self.get_directory_from_dbus,  # Más confiable para Nautilus moderno
             self.get_directory_from_active_nautilus_window,
-            self.get_directory_from_focused_nautilus,
-            self.get_directory_from_nautilus_process,
-            self.get_directory_from_xdotool,
-            self.get_directory_from_wmctrl,
-            self.get_directory_from_active_window,
             self.get_directory_from_fallback
         ]
 
@@ -1805,7 +1546,7 @@ class FloatingButtonApp:
                 directory = method()
                 if directory and os.path.exists(directory):
                     return directory
-            except Exception as e:
+            except Exception:
                 continue
 
         return None
@@ -1921,77 +1662,6 @@ class FloatingButtonApp:
         
         return None
     
-    def get_directory_from_focused_nautilus(self):
-        """Get directory from focused Nautilus window using different approach"""
-        try:
-            # Get all Nautilus windows and find the focused one
-            result = subprocess.run(
-                ['xdotool', 'search', '--class', 'nautilus'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0 and result.stdout.strip():
-                window_ids = result.stdout.strip().split('\n')
-                
-                # Get the currently focused window
-                focused_result = subprocess.run(
-                    ['xdotool', 'getwindowfocus'],
-                    capture_output=True,
-                    text=True,
-                    timeout=1
-                )
-                
-                if focused_result.returncode == 0:
-                    focused_id = focused_result.stdout.strip()
-                    
-                    # Check if the focused window is one of our Nautilus windows
-                    for window_id in window_ids:
-                        if window_id.strip() == focused_id:
-                            # This is a focused Nautilus window
-                            title_result = subprocess.run(
-                                ['xdotool', 'getwindowname', window_id.strip()],
-                                capture_output=True,
-                                text=True,
-                                timeout=1
-                            )
-                            
-                            if title_result.returncode == 0:
-                                title = title_result.stdout.strip()
-                                directory = self.extract_directory_from_title(title)
-                                if directory:
-                                    return directory
-                    
-                    # If focused window is not Nautilus, get the most recently active Nautilus
-                    for window_id in window_ids:
-                        if window_id.strip():
-                            # Check if window is visible
-                            visible_result = subprocess.run(
-                                ['xdotool', 'getwindowgeometry', '--shell', window_id.strip()],
-                                capture_output=True,
-                                text=True,
-                                timeout=1
-                            )
-                            
-                            if visible_result.returncode == 0:
-                                title_result = subprocess.run(
-                                    ['xdotool', 'getwindowname', window_id.strip()],
-                                    capture_output=True,
-                                    text=True,
-                                    timeout=1
-                                )
-                                
-                                if title_result.returncode == 0:
-                                    title = title_result.stdout.strip()
-                                    directory = self.extract_directory_from_title(title)
-                                    if directory:
-                                        return directory
-
-        except Exception:
-            pass
-        
-        return None
     
     def get_directory_from_window_properties(self, window_id):
         """Try to get directory from window properties"""
@@ -2028,106 +1698,6 @@ class FloatingButtonApp:
         
         return None
     
-    def get_directory_from_nautilus_process(self):
-        """Get directory from Nautilus process information"""
-        try:
-            # Get nautilus process info
-            result = subprocess.run(
-                ['pgrep', '-a', 'nautilus'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
-                for line in lines:
-                    # Look for file:// URLs in process arguments
-                    if 'file://' in line:
-                        import re
-                        urls = re.findall(r'file://([^\s]+)', line)
-                        for url in urls:
-                            from urllib.parse import unquote
-                            path = unquote(url)
-                            if os.path.exists(path) and os.path.isdir(path):
-                                return path
-
-        except Exception:
-            pass
-        
-        return None
-    
-    def get_directory_from_xdotool(self):
-        """Get directory using xdotool with improved detection"""
-        try:
-            # Get Nautilus window IDs
-            result = subprocess.run(
-                ['xdotool', 'search', '--class', 'nautilus'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0 and result.stdout.strip():
-                window_ids = result.stdout.strip().split('\n')
-                for window_id in window_ids:
-                    if window_id.strip():
-                        # Get window name for each ID
-                        name_result = subprocess.run(
-                            ['xdotool', 'getwindowname', window_id.strip()],
-                            capture_output=True,
-                            text=True,
-                            timeout=1
-                        )
-                        
-                        if name_result.returncode == 0:
-                            title = name_result.stdout.strip()
-
-                            # Try to extract directory from title
-                            directory = self.extract_directory_from_title(title)
-                            if directory:
-                                return directory
-
-        except Exception:
-            pass
-        
-        return None
-    
-    def get_directory_from_wmctrl(self):
-        """Get directory using wmctrl"""
-        result = subprocess.run(
-            ['wmctrl', '-l'],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-        
-        if result.returncode == 0:
-            for line in result.stdout.split('\n'):
-                if 'nautilus' in line.lower() or 'Files' in line or 'Archivos' in line:
-                    parts = line.split(None, 3)
-                    if len(parts) >= 4:
-                        title = parts[3]
-                        directory = self.extract_directory_from_title(title)
-                        if directory:
-                            return directory
-        return None
-    
-    def get_directory_from_active_window(self):
-        """Get directory from currently active window if it's Nautilus"""
-        # Get active window
-        result = subprocess.run(
-            ['xdotool', 'getactivewindow', 'getwindowname'],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-        
-        if result.returncode == 0:
-            title = result.stdout.strip()
-            if 'Files' in title or 'Archivos' in title or title.startswith('/'):
-                return self.extract_directory_from_title(title)
-        return None
     
     def get_directory_from_fallback(self):
         """Fallback method - use smart defaults"""

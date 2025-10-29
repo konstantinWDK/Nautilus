@@ -1,4 +1,25 @@
 #!/bin/bash
 # Lanzador de Nautilus VSCode Widget
-cd /usr/share/nautilus-vscode-widget
-python3 /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py &
+# Versión robusta - nunca termina prematuramente
+
+# Cambiar al directorio de la aplicación
+cd /usr/share/nautilus-vscode-widget || {
+    echo "Error: No se puede acceder a /usr/share/nautilus-vscode-widget" >&2
+    exit 1
+}
+
+# Verificar que el script Python existe
+if [ ! -f "nautilus-vscode-widget.py" ]; then
+    echo "Error: No se encuentra nautilus-vscode-widget.py" >&2
+    exit 1
+fi
+
+# Verificar que python3 está disponible
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 no está disponible" >&2
+    exit 1
+fi
+
+# Ejecutar la aplicación de forma robusta
+# Usar exec para reemplazar el proceso actual y evitar terminación prematura
+exec python3 /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py "$@"

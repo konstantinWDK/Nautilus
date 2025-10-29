@@ -6,7 +6,7 @@
 set -e
 
 echo "====================================================="
-echo "  Instalación de Nautilus VSCode Widget v3.3.7"
+echo "  Instalación de Nautilus VSCode Widget v3.3.8"
 echo "====================================================="
 echo ""
 
@@ -40,6 +40,28 @@ if ! python3 -c "from gi.repository import Gtk" 2>/dev/null; then
     echo "Instala las dependencias con:"
     echo "  sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0"
     exit 1
+fi
+
+# Verificar dependencias adicionales
+echo "🔍 Verificando dependencias adicionales..."
+if ! python3 -c "import cairo" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  python3-cairo no está instalado${NC}"
+    echo "Instala con: sudo apt install python3-cairo"
+fi
+
+if ! python3 -c "import json" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  python3-json no está disponible${NC}"
+fi
+
+# Verificar herramientas del sistema
+echo "🔍 Verificando herramientas del sistema..."
+if ! command -v xdotool &> /dev/null; then
+    echo -e "${YELLOW}⚠️  xdotool no está instalado (recomendado para mejor detección)${NC}"
+    echo "Instala con: sudo apt install xdotool"
+fi
+
+if ! command -v gdbus &> /dev/null; then
+    echo -e "${YELLOW}⚠️  gdbus no está disponible (recomendado para Nautilus moderno)${NC}"
 fi
 
 echo -e "${GREEN}✓ Dependencias verificadas${NC}"

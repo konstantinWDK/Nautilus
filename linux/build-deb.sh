@@ -86,8 +86,29 @@ chmod +x "$DEBIAN_DIR/usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py
 cat > "$DEBIAN_DIR/usr/bin/nautilus-vscode-widget" << 'EOF'
 #!/bin/bash
 # Lanzador de Nautilus VSCode Widget
-cd /usr/share/nautilus-vscode-widget
-python3 /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py &
+# Versión robusta - nunca termina prematuramente
+
+# Cambiar al directorio de la aplicación
+cd /usr/share/nautilus-vscode-widget || {
+    echo "Error: No se puede acceder a /usr/share/nautilus-vscode-widget" >&2
+    exit 1
+}
+
+# Verificar que el script Python existe
+if [ ! -f "nautilus-vscode-widget.py" ]; then
+    echo "Error: No se encuentra nautilus-vscode-widget.py" >&2
+    exit 1
+fi
+
+# Verificar que python3 está disponible
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 no está disponible" >&2
+    exit 1
+fi
+
+# Ejecutar la aplicación de forma robusta
+# Usar exec para reemplazar el proceso actual y evitar terminación prematura
+exec python3 /usr/share/nautilus-vscode-widget/nautilus-vscode-widget.py "$@"
 EOF
 
 chmod +x "$DEBIAN_DIR/usr/bin/nautilus-vscode-widget"
@@ -137,6 +158,11 @@ EOF
 # Leer versión del archivo control
 VERSION=$(grep "^Version:" "$DEBIAN_DIR/DEBIAN/control" | cut -d' ' -f2)
 PACKAGE_NAME="nautilus-vscode-widget_${VERSION}_all.deb"
+
+# Actualizar versión en el script principal si es necesario
+if [ -f "$PROJECT_DIR/nautilus-vscode-widget.py" ]; then
+    sed -i "s/VERSION = \"3\\.3\\.7\"/VERSION = \"$VERSION\"/" "$PROJECT_DIR/nautilus-vscode-widget.py" 2>/dev/null || true
+fi
 
 # Asegurar permisos correctos según estándares Debian
 echo -e "${CYAN}Configurando permisos según estándares Debian...${NC}"
