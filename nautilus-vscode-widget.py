@@ -248,6 +248,10 @@ class FloatingButtonApp:
         self.dir_timer_id = None
         self.recent_activity = False  # Flag para z-order check
         self.last_directory_detection = 0  # Timestamp de última detección
+        
+        # CRÍTICO: No iniciar timers de detección - widget siempre visible
+        self.check_focus_interval = 0
+        self.update_dir_interval = 0
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -326,11 +330,16 @@ class FloatingButtonApp:
         # Apply circular shape after window is realized
         self.window.connect('realize', self.apply_circular_shape)
 
-        # Enable dragging
+        # Enable dragging - eventos en la ventana principal
         self.window.connect('button-press-event', self.on_button_press)
         self.window.connect('button-release-event', self.on_button_release)
         self.window.connect('motion-notify-event', self.on_motion)
         self.window.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                              Gdk.EventMask.BUTTON_RELEASE_MASK |
+                              Gdk.EventMask.POINTER_MOTION_MASK)
+        
+        # CRÍTICO: También habilitar eventos en el botón para capturar clics
+        self.button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
                               Gdk.EventMask.BUTTON_RELEASE_MASK |
                               Gdk.EventMask.POINTER_MOTION_MASK)
 
@@ -1555,30 +1564,10 @@ class FloatingButtonApp:
                 self._adjust_check_intervals(False)
 
     def _adjust_check_intervals(self, nautilus_focused):
-        """Ajustar intervalos de timers según el estado de foco (v3.3.6 optimizado)
-        Con widget siempre visible, usamos intervalos más espaciados para mejor rendimiento"""
-
-        if nautilus_focused or self.config.get('always_visible', True):
-            # v3.3.6: Widget siempre visible - intervalos optimizados
-            new_focus_interval = 1000   # v3.3.6: 500ms -> 1000ms (widget siempre visible)
-            new_dir_interval = 1500     # v3.3.6: 1000ms -> 1500ms (menos frecuente)
-        else:
-            # Nautilus no enfocado: intervalos lentos para ahorrar CPU (modo legacy)
-            new_focus_interval = 3000   # v3.3.6: 2000ms -> 3000ms
-            new_dir_interval = 4000     # v3.3.6: 3000ms -> 4000ms
-
-        # Solo reiniciar timers si el intervalo ha cambiado
-        if new_focus_interval != self.check_focus_interval:
-            self.check_focus_interval = new_focus_interval
-            if self.focus_timer_id:
-                GLib.source_remove(self.focus_timer_id)
-            self.focus_timer_id = GLib.timeout_add(self.check_focus_interval, self.check_nautilus_focus)
-
-        if new_dir_interval != self.update_dir_interval:
-            self.update_dir_interval = new_dir_interval
-            if self.dir_timer_id:
-                GLib.source_remove(self.dir_timer_id)
-            self.dir_timer_id = GLib.timeout_add(self.update_dir_interval, self.update_current_directory)
+        """Función legacy - Ya no se usan timers de detección continua"""
+        # v3.3.7: Widget siempre visible - sin timers activos
+        # Esta función se mantiene para compatibilidad pero no hace nada
+        pass
 
     def fade_in(self):
         """Smoothly fade in the button with animations"""
