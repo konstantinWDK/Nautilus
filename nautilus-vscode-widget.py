@@ -12,7 +12,6 @@ import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
-import cairo
 import subprocess
 import os
 import re
@@ -404,9 +403,6 @@ class FloatingButtonApp:
         # Apply CSS
         self.apply_styles()
 
-        # Apply circular shape after window is realized
-        self.window.connect('realize', self.apply_circular_shape)
-
         # Enable dragging - eventos en la ventana principal
         self.window.connect('button-press-event', self.on_button_press)
         self.window.connect('button-release-event', self.on_button_release)
@@ -455,46 +451,6 @@ class FloatingButtonApp:
             warnings.simplefilter("ignore", DeprecationWarning)
             widget.set_opacity(opacity)
 
-    def on_draw(self, widget, cr):
-        """Draw transparent background"""
-        cr.set_source_rgba(0, 0, 0, 0)  # Completely transparent
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.paint()
-        cr.set_operator(cairo.OPERATOR_OVER)
-        return False
-
-    def on_draw_overlay(self, widget, cr):
-        """Draw transparent overlay background"""
-        cr.set_source_rgba(0, 0, 0, 0)  # Completely transparent
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.paint()
-        cr.set_operator(cairo.OPERATOR_OVER)
-        return False
-
-    def apply_circular_shape(self, widget):
-        """Apply circular shape to the window to remove square background"""
-        # Create a circular region
-        width = self.button_size
-        height = self.button_size
-        radius = self.button_size // 2
-
-        # Create a cairo surface to draw the shape
-        surface = cairo.ImageSurface(cairo.FORMAT_A1, width, height)
-        cr = cairo.Context(surface)
-
-        # Draw a filled circle
-        cr.set_source_rgba(1, 1, 1, 1)
-        cr.arc(radius, radius, radius, 0, 2 * 3.14159)
-        cr.fill()
-
-        # Create region from the surface
-        region = Gdk.cairo_region_create_from_surface(surface)
-
-        # Apply the shape to the window
-        if self.window.get_window():
-            self.window.get_window().shape_combine_region(region, 0, 0)
-            # Also apply to input shape so clicks outside circle don't register
-            self.window.get_window().input_shape_combine_region(region, 0, 0)
 
     def setup_logging(self):
         """Setup structured logging system"""
@@ -634,7 +590,6 @@ class FloatingButtonApp:
         # Main container - Fixed box en lugar de Overlay
         fixed = Gtk.Fixed()
         fixed.set_app_paintable(True)
-        fixed.connect('draw', self.on_draw_overlay)
         # Forzar tamaño exacto del contenedor - NO permitir expansión
         fixed.set_size_request(self.button_size, self.button_size)
         fixed.set_hexpand(False)
@@ -781,8 +736,6 @@ class FloatingButtonApp:
         visual = screen.get_rgba_visual()
         if visual:
             self.favorites_window.set_visual(visual)
-
-        self.favorites_window.connect('draw', self.on_draw)
 
         # Crear layout principal para el contenedor
         self.favorites_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
