@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.8"
+VERSION = "3.3.9"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -18,9 +18,11 @@ import re
 import json
 import time
 import logging
+import logging.handlers
 import sys
 import shutil
 import threading
+import platform
 from functools import lru_cache
 from datetime import datetime
 
@@ -42,6 +44,187 @@ except ImportError:
 
 # El cache ahora se implementa directamente con decoradores @lru_cache
 # en las funciones que necesitan caching
+
+
+def setup_advanced_logging(log_dir):
+    """
+    Sistema de logging optimizado y profesional con:
+    - Rotación automática de logs
+    - Múltiples niveles de detalle
+    - Diagnóstico completo de sistema
+    - Detección de dependencias
+    - Formato estructurado
+    """
+    log_file = os.path.join(log_dir, 'widget.log')
+    debug_log_file = os.path.join(log_dir, 'widget_debug.log')
+
+    # Crear directorio si no existe
+    os.makedirs(log_dir, mode=0o700, exist_ok=True)
+
+    # Logger principal
+    logger = logging.getLogger('NautilusVSCodeWidget')
+    logger.setLevel(logging.DEBUG)  # Capturar todo
+
+    # Limpiar handlers existentes
+    logger.handlers.clear()
+
+    # 1. Handler para archivo principal (INFO y superior) con rotación
+    main_handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3,
+        encoding='utf-8'
+    )
+    main_handler.setLevel(logging.INFO)
+    main_formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)d - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    main_handler.setFormatter(main_formatter)
+    logger.addHandler(main_handler)
+
+    # 2. Handler para debug (TODO) con rotación más agresiva
+    debug_handler = logging.handlers.RotatingFileHandler(
+        debug_log_file,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=2,
+        encoding='utf-8'
+    )
+    debug_handler.setLevel(logging.DEBUG)
+    debug_formatter = logging.Formatter(
+        '%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s:%(funcName)s:%(lineno)d\n'
+        '    %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    debug_handler.setFormatter(debug_formatter)
+    logger.addHandler(debug_handler)
+
+    # 3. Handler para consola (WARNING y superior)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.WARNING)
+    console_formatter = logging.Formatter(
+        '%(levelname)s: %(message)s'
+    )
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+
+    return logger
+
+
+def log_system_diagnostics(logger):
+    """Registrar información completa del sistema para diagnóstico"""
+
+    logger.info("=" * 80)
+    logger.info(f"NAUTILUS VSCODE WIDGET v{VERSION} - INICIO")
+    logger.info("=" * 80)
+
+    # 1. Información del sistema
+    logger.info("INFORMACIÓN DEL SISTEMA:")
+    logger.info(f"  OS: {platform.system()} {platform.release()}")
+    logger.info(f"  Versión: {platform.version()}")
+    logger.info(f"  Arquitectura: {platform.machine()}")
+    logger.info(f"  Python: {sys.version.split()[0]}")
+    logger.info(f"  Ejecutable: {sys.executable}")
+    logger.info(f"  Modo: {'Portable (PyInstaller)' if is_portable_mode() else 'Instalado'}")
+
+    # 2. Variables de entorno importantes
+    logger.info("\nVARIABLES DE ENTORNO:")
+    env_vars = [
+        'XDG_CURRENT_DESKTOP', 'DESKTOP_SESSION', 'XDG_SESSION_TYPE',
+        'WAYLAND_DISPLAY', 'DISPLAY', 'GDMSESSION', 'PATH'
+    ]
+    for var in env_vars:
+        value = os.environ.get(var, '<no definida>')
+        if var == 'PATH':
+            # PATH puede ser muy largo, truncar
+            value = value[:100] + '...' if len(value) > 100 else value
+        logger.info(f"  {var}: {value}")
+
+    # 3. Versiones de GTK
+    logger.info("\nVERSIONES DE GTK:")
+    try:
+        logger.info(f"  GTK: {Gtk.MAJOR_VERSION}.{Gtk.MINOR_VERSION}.{Gtk.MICRO_VERSION}")
+        logger.info(f"  GDK: {Gdk.MAJOR_VERSION}.{Gdk.MINOR_VERSION}.{Gdk.MICRO_VERSION}")
+        logger.info(f"  GLib: {GLib.MAJOR_VERSION}.{GLib.MINOR_VERSION}.{GLib.MICRO_VERSION}")
+    except Exception as e:
+        logger.error(f"  Error obteniendo versiones GTK: {e}")
+
+    # 4. Dependencias opcionales
+    logger.info("\nDEPENDENCIAS OPCIONALES:")
+
+    # Xlib
+    if XLIB_AVAILABLE:
+        logger.info("  ✓ Xlib: Disponible")
+    else:
+        logger.warning("  ✗ Xlib: No disponible (opcional, usado para X11)")
+
+    # Herramientas del sistema
+    tools = {
+        'xdotool': 'Detección de ventanas en X11',
+        'wmctrl': 'Control de ventanas',
+        'xprop': 'Propiedades de ventanas X11',
+        'gdbus': 'Comunicación DBus con Nautilus',
+        'nautilus': 'Gestor de archivos',
+        'code': 'VSCode',
+        'code-insiders': 'VSCode Insiders',
+        'codium': 'VSCodium'
+    }
+
+    for tool, description in tools.items():
+        path = shutil.which(tool)
+        if path:
+            logger.info(f"  ✓ {tool}: {path}")
+        else:
+            level = logging.WARNING if tool in ['gdbus', 'nautilus'] else logging.DEBUG
+            logger.log(level, f"  ✗ {tool}: No encontrado - {description}")
+
+    # 5. Detectar entorno gráfico
+    env_info = detect_environment()
+    logger.info("\nENTORNO GRÁFICO:")
+    logger.info(f"  Servidor de display: {env_info['display_server'].upper()}")
+    logger.info(f"  Desktop: {env_info['desktop'] or 'Desconocido'}")
+    logger.info(f"  xdotool disponible: {'Sí' if env_info['has_xdotool'] else 'No'}")
+    logger.info(f"  wmctrl disponible: {'Sí' if env_info['has_wmctrl'] else 'No'}")
+    logger.info(f"  gdbus disponible: {'Sí' if env_info['has_gdbus'] else 'No'}")
+
+    # 6. Verificar permisos y rutas
+    logger.info("\nRUTAS Y PERMISOS:")
+    config_dir = get_config_dir()
+    log_dir = get_log_dir()
+    logger.info(f"  Configuración: {config_dir}")
+    logger.info(f"  Logs: {log_dir}")
+
+    # Verificar permisos
+    for path, name in [(config_dir, 'config'), (log_dir, 'logs')]:
+        if os.path.exists(path):
+            stat_info = os.stat(path)
+            perms = oct(stat_info.st_mode)[-3:]
+            logger.info(f"  Permisos {name}: {perms} (propietario: {stat_info.st_uid})")
+        else:
+            logger.warning(f"  {name}: No existe aún")
+
+    # 7. Advertencias y recomendaciones
+    logger.info("\nDIAGNÓSTICO:")
+
+    if env_info['display_server'] == 'wayland':
+        if not env_info['has_gdbus']:
+            logger.warning("  ⚠ En Wayland sin gdbus, la detección de directorios puede fallar")
+            logger.warning("    Instalar: sudo apt install libglib2.0-bin")
+        else:
+            logger.info("  ✓ Configuración óptima para Wayland")
+    else:  # X11
+        if not env_info['has_xdotool']:
+            logger.warning("  ⚠ En X11 sin xdotool, la detección puede ser limitada")
+            logger.warning("    Instalar: sudo apt install xdotool")
+        else:
+            logger.info("  ✓ Configuración óptima para X11")
+
+    if not shutil.which('code') and not shutil.which('codium'):
+        logger.warning("  ⚠ VSCode no detectado en PATH")
+        logger.warning("    El widget intentará buscar en ubicaciones comunes")
+
+    logger.info("=" * 80)
+    logger.info("")
 
 
 def detect_environment():
@@ -520,22 +703,14 @@ class FloatingButtonApp:
         self.logger.info("Cleanup completado")
 
     def setup_logging(self):
-        """Setup structured logging system"""
+        """Setup advanced logging system with diagnostics"""
         log_dir = get_log_dir()
-        log_file = os.path.join(log_dir, 'widget.log')
-        
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file, encoding='utf-8'),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        
-        self.logger = logging.getLogger('NautilusVSCodeWidget')
-        self.logger.info(f"Widget iniciado - Versión {VERSION}")
+
+        # Usar el nuevo sistema de logging optimizado
+        self.logger = setup_advanced_logging(log_dir)
+
+        # Registrar diagnóstico completo del sistema
+        log_system_diagnostics(self.logger)
 
     def load_config(self):
         """Load configuration from file with validation"""

@@ -6,21 +6,24 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.8"
+VERSION = "3.3.9"
 
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
-import cairo
 import subprocess
 import os
 import re
 import json
 import time
 import logging
+import logging.handlers
 import sys
 import shutil
+import threading
+import platform
+from functools import lru_cache
 from datetime import datetime
 
 # Importaciones opcionales según el entorno
@@ -32,90 +35,196 @@ except ImportError:
     XLIB_AVAILABLE = False
 
 
-class SubprocessCache:
-    """Cache para resultados de subprocess con TTL mejorado y cleanup automático"""
-    def __init__(self, ttl=5.0, max_size=50, memory_limit_mb=10):
-        self.cache = {}
-        self.ttl = ttl
-        self.max_size = max_size
-        self.memory_limit_mb = memory_limit_mb
-        self.hits = 0
-        self.misses = 0
-        self.cleanup_timer = GLib.timeout_add(30000, self._periodic_cleanup)  # Cleanup cada 30 segundos
+# OPTIMIZACIÓN: SubprocessCache reemplazada por functools.lru_cache
+# Mucho más eficiente, sin timers, implementada en C
+# La clase anterior tenía problemas de:
+# - Timer innecesario cada 30s
+# - Medición de memoria imprecisa
+# - Código complejo y difícil de mantener
 
-    def get(self, key, func):
-        """Obtener resultado cacheado o ejecutar función"""
-        now = time.time()
-        if key in self.cache:
-            result, timestamp = self.cache[key]
-            if now - timestamp < self.ttl:
-                self.hits += 1
-                return result
+# El cache ahora se implementa directamente con decoradores @lru_cache
+# en las funciones que necesitan caching
 
-        self.misses += 1
-        result = func()
-        self.cache[key] = (result, now)
 
-        # Limpiar cache si excede el tamaño máximo o límite de memoria
-        if len(self.cache) > self.max_size or self._estimate_memory_usage() > self.memory_limit_mb * 1024 * 1024:
-            self._cleanup_old_entries()
+def setup_advanced_logging(log_dir):
+    """
+    Sistema de logging optimizado y profesional con:
+    - Rotación automática de logs
+    - Múltiples niveles de detalle
+    - Diagnóstico completo de sistema
+    - Detección de dependencias
+    - Formato estructurado
+    """
+    log_file = os.path.join(log_dir, 'widget.log')
+    debug_log_file = os.path.join(log_dir, 'widget_debug.log')
 
-        return result
+    # Crear directorio si no existe
+    os.makedirs(log_dir, mode=0o700, exist_ok=True)
 
-    def _estimate_memory_usage(self):
-        """Estimar uso de memoria del cache"""
-        import sys
-        total_size = 0
-        for key, (value, timestamp) in self.cache.items():
-            total_size += sys.getsizeof(key)
-            total_size += sys.getsizeof(value)
-            total_size += sys.getsizeof(timestamp)
-        return total_size
+    # Logger principal
+    logger = logging.getLogger('NautilusVSCodeWidget')
+    logger.setLevel(logging.DEBUG)  # Capturar todo
 
-    def _cleanup_old_entries(self):
-        """Eliminar entradas más antiguas si el cache es muy grande"""
-        now = time.time()
-        # Eliminar entradas expiradas primero
-        expired_keys = [k for k, (_, ts) in self.cache.items() if now - ts >= self.ttl]
-        for key in expired_keys:
-            del self.cache[key]
+    # Limpiar handlers existentes
+    logger.handlers.clear()
 
-        # Si aún está muy grande, eliminar las más antiguas
-        if len(self.cache) > self.max_size:
-            sorted_items = sorted(self.cache.items(), key=lambda x: x[1][1])
-            to_remove = len(self.cache) - self.max_size
-            for key, _ in sorted_items[:to_remove]:
-                del self.cache[key]
+    # 1. Handler para archivo principal (INFO y superior) con rotación
+    main_handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3,
+        encoding='utf-8'
+    )
+    main_handler.setLevel(logging.INFO)
+    main_formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)d - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    main_handler.setFormatter(main_formatter)
+    logger.addHandler(main_handler)
 
-    def _periodic_cleanup(self):
-        """Cleanup periódico automático"""
-        self._cleanup_old_entries()
-        return True  # Continuar el timer
+    # 2. Handler para debug (TODO) con rotación más agresiva
+    debug_handler = logging.handlers.RotatingFileHandler(
+        debug_log_file,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=2,
+        encoding='utf-8'
+    )
+    debug_handler.setLevel(logging.DEBUG)
+    debug_formatter = logging.Formatter(
+        '%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s:%(funcName)s:%(lineno)d\n'
+        '    %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    debug_handler.setFormatter(debug_formatter)
+    logger.addHandler(debug_handler)
 
-    def get_stats(self):
-        """Obtener estadísticas del cache"""
-        hit_rate = self.hits / (self.hits + self.misses) if (self.hits + self.misses) > 0 else 0
-        return {
-            'size': len(self.cache),
-            'hits': self.hits,
-            'misses': self.misses,
-            'hit_rate': hit_rate,
-            'memory_usage_mb': self._estimate_memory_usage() / (1024 * 1024)
-        }
+    # 3. Handler para consola (WARNING y superior)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.WARNING)
+    console_formatter = logging.Formatter(
+        '%(levelname)s: %(message)s'
+    )
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
 
-    def clear(self):
-        """Limpiar caché"""
-        self.cache.clear()
-        self.hits = 0
-        self.misses = 0
+    return logger
 
-    def __del__(self):
-        """Destructor para limpiar recursos"""
-        try:
-            if hasattr(self, 'cleanup_timer'):
-                GLib.source_remove(self.cleanup_timer)
-        except Exception:
-            pass  # Ignorar errores durante la destrucción
+
+def log_system_diagnostics(logger):
+    """Registrar información completa del sistema para diagnóstico"""
+
+    logger.info("=" * 80)
+    logger.info(f"NAUTILUS VSCODE WIDGET v{VERSION} - INICIO")
+    logger.info("=" * 80)
+
+    # 1. Información del sistema
+    logger.info("INFORMACIÓN DEL SISTEMA:")
+    logger.info(f"  OS: {platform.system()} {platform.release()}")
+    logger.info(f"  Versión: {platform.version()}")
+    logger.info(f"  Arquitectura: {platform.machine()}")
+    logger.info(f"  Python: {sys.version.split()[0]}")
+    logger.info(f"  Ejecutable: {sys.executable}")
+    logger.info(f"  Modo: {'Portable (PyInstaller)' if is_portable_mode() else 'Instalado'}")
+
+    # 2. Variables de entorno importantes
+    logger.info("\nVARIABLES DE ENTORNO:")
+    env_vars = [
+        'XDG_CURRENT_DESKTOP', 'DESKTOP_SESSION', 'XDG_SESSION_TYPE',
+        'WAYLAND_DISPLAY', 'DISPLAY', 'GDMSESSION', 'PATH'
+    ]
+    for var in env_vars:
+        value = os.environ.get(var, '<no definida>')
+        if var == 'PATH':
+            # PATH puede ser muy largo, truncar
+            value = value[:100] + '...' if len(value) > 100 else value
+        logger.info(f"  {var}: {value}")
+
+    # 3. Versiones de GTK
+    logger.info("\nVERSIONES DE GTK:")
+    try:
+        logger.info(f"  GTK: {Gtk.MAJOR_VERSION}.{Gtk.MINOR_VERSION}.{Gtk.MICRO_VERSION}")
+        logger.info(f"  GDK: {Gdk.MAJOR_VERSION}.{Gdk.MINOR_VERSION}.{Gdk.MICRO_VERSION}")
+        logger.info(f"  GLib: {GLib.MAJOR_VERSION}.{GLib.MINOR_VERSION}.{GLib.MICRO_VERSION}")
+    except Exception as e:
+        logger.error(f"  Error obteniendo versiones GTK: {e}")
+
+    # 4. Dependencias opcionales
+    logger.info("\nDEPENDENCIAS OPCIONALES:")
+
+    # Xlib
+    if XLIB_AVAILABLE:
+        logger.info("  ✓ Xlib: Disponible")
+    else:
+        logger.warning("  ✗ Xlib: No disponible (opcional, usado para X11)")
+
+    # Herramientas del sistema
+    tools = {
+        'xdotool': 'Detección de ventanas en X11',
+        'wmctrl': 'Control de ventanas',
+        'xprop': 'Propiedades de ventanas X11',
+        'gdbus': 'Comunicación DBus con Nautilus',
+        'nautilus': 'Gestor de archivos',
+        'code': 'VSCode',
+        'code-insiders': 'VSCode Insiders',
+        'codium': 'VSCodium'
+    }
+
+    for tool, description in tools.items():
+        path = shutil.which(tool)
+        if path:
+            logger.info(f"  ✓ {tool}: {path}")
+        else:
+            level = logging.WARNING if tool in ['gdbus', 'nautilus'] else logging.DEBUG
+            logger.log(level, f"  ✗ {tool}: No encontrado - {description}")
+
+    # 5. Detectar entorno gráfico
+    env_info = detect_environment()
+    logger.info("\nENTORNO GRÁFICO:")
+    logger.info(f"  Servidor de display: {env_info['display_server'].upper()}")
+    logger.info(f"  Desktop: {env_info['desktop'] or 'Desconocido'}")
+    logger.info(f"  xdotool disponible: {'Sí' if env_info['has_xdotool'] else 'No'}")
+    logger.info(f"  wmctrl disponible: {'Sí' if env_info['has_wmctrl'] else 'No'}")
+    logger.info(f"  gdbus disponible: {'Sí' if env_info['has_gdbus'] else 'No'}")
+
+    # 6. Verificar permisos y rutas
+    logger.info("\nRUTAS Y PERMISOS:")
+    config_dir = get_config_dir()
+    log_dir = get_log_dir()
+    logger.info(f"  Configuración: {config_dir}")
+    logger.info(f"  Logs: {log_dir}")
+
+    # Verificar permisos
+    for path, name in [(config_dir, 'config'), (log_dir, 'logs')]:
+        if os.path.exists(path):
+            stat_info = os.stat(path)
+            perms = oct(stat_info.st_mode)[-3:]
+            logger.info(f"  Permisos {name}: {perms} (propietario: {stat_info.st_uid})")
+        else:
+            logger.warning(f"  {name}: No existe aún")
+
+    # 7. Advertencias y recomendaciones
+    logger.info("\nDIAGNÓSTICO:")
+
+    if env_info['display_server'] == 'wayland':
+        if not env_info['has_gdbus']:
+            logger.warning("  ⚠ En Wayland sin gdbus, la detección de directorios puede fallar")
+            logger.warning("    Instalar: sudo apt install libglib2.0-bin")
+        else:
+            logger.info("  ✓ Configuración óptima para Wayland")
+    else:  # X11
+        if not env_info['has_xdotool']:
+            logger.warning("  ⚠ En X11 sin xdotool, la detección puede ser limitada")
+            logger.warning("    Instalar: sudo apt install xdotool")
+        else:
+            logger.info("  ✓ Configuración óptima para X11")
+
+    if not shutil.which('code') and not shutil.which('codium'):
+        logger.warning("  ⚠ VSCode no detectado en PATH")
+        logger.warning("    El widget intentará buscar en ubicaciones comunes")
+
+    logger.info("=" * 80)
+    logger.info("")
 
 
 def detect_environment():
@@ -144,38 +253,72 @@ def validate_editor_command(cmd):
     if not cmd or not isinstance(cmd, str):
         return None
 
-    # Remover espacios y caracteres peligrosos
+    # Remover espacios y validar que no contenga argumentos peligrosos
     cmd = cmd.strip()
-    
-    # Lista de comandos peligrosos que no deberían ejecutarse
-    dangerous_commands = [
+
+    # NO permitir comandos con argumentos - solo el ejecutable
+    # Los argumentos se añadirán de forma controlada al ejecutar
+    if ' ' in cmd:
+        # Si tiene espacios, solo tomar el primer elemento (el comando)
+        cmd = cmd.split()[0]
+
+    # Lista expandida de comandos peligrosos que no deberían ejecutarse
+    dangerous_commands = {
         'rm', 'sudo', 'su', 'chmod', 'chown', 'dd', 'mkfs', 'fdisk',
-        'shutdown', 'reboot', 'halt', 'poweroff', 'init', 'killall'
-    ]
-    
+        'shutdown', 'reboot', 'halt', 'poweroff', 'init', 'killall',
+        'pkill', 'kill', 'systemctl', 'service', 'bash', 'sh', 'zsh',
+        'python', 'perl', 'ruby', 'node', 'wget', 'curl', 'nc', 'netcat'
+    }
+
+    # Obtener nombre base del comando
+    base_cmd = os.path.basename(cmd)
+
     # Verificar si el comando está en la lista de peligrosos
-    base_cmd = cmd.split()[0] if ' ' in cmd else cmd
-    if base_cmd in dangerous_commands:
+    if base_cmd in dangerous_commands or base_cmd.startswith('rm'):
         return None
+
+    # Lista blanca de editores conocidos y seguros
+    known_safe_editors = {
+        'code', 'code-insiders', 'codium', 'vscodium',
+        'vim', 'nvim', 'vi', 'nano', 'emacs', 'gedit', 'kate',
+        'sublime_text', 'subl', 'atom', 'notepad++',
+        'mousepad', 'pluma', 'xed', 'geany', 'brackets'
+    }
 
     # Verificar si es una ruta absoluta
     if os.path.isabs(cmd):
         try:
             # Resolver symlinks para evitar ataques
             real_path = os.path.realpath(cmd)
-            if os.path.isfile(real_path) and os.access(real_path, os.X_OK):
-                # Verificar que no sea un archivo del sistema crítico
-                system_dirs = ['/bin', '/sbin', '/usr/bin', '/usr/sbin', '/usr/local/bin']
-                if any(real_path.startswith(dir_path) for dir_path in system_dirs):
-                    # Solo permitir ejecutables en directorios del sistema si son editores conocidos
-                    known_editors = ['code', 'vim', 'nano', 'emacs', 'gedit', 'kate', 'sublime_text']
-                    if any(editor in real_path.lower() for editor in known_editors):
-                        return real_path
-                else:
-                    # Para rutas fuera de directorios del sistema, verificar permisos más estrictos
-                    stat_info = os.stat(real_path)
-                    if stat_info.st_uid == os.getuid():  # Archivo pertenece al usuario actual
-                        return real_path
+
+            # Verificar que existe y es ejecutable
+            if not (os.path.isfile(real_path) and os.access(real_path, os.X_OK)):
+                return None
+
+            # Verificar que el archivo no sea demasiado grande (posible malware)
+            file_size = os.path.getsize(real_path)
+            if file_size > 500 * 1024 * 1024:  # Máximo 500MB
+                return None
+
+            # Verificar que el nombre base esté en la whitelist o sea un editor conocido
+            if (base_cmd in known_safe_editors or
+                any(editor in real_path.lower() for editor in known_safe_editors)):
+                return real_path
+
+            # Si está en directorios del sistema, rechazar si no está en whitelist
+            system_dirs = ['/bin/', '/sbin/', '/usr/bin/', '/usr/sbin/', '/usr/local/bin/']
+            if any(real_path.startswith(dir_path) for dir_path in system_dirs):
+                return None
+
+            # Para rutas fuera de directorios del sistema, verificar ownership
+            stat_info = os.stat(real_path)
+            if stat_info.st_uid == os.getuid():
+                # Archivo pertenece al usuario actual - verificar permisos
+                # Rechazar si otros tienen permisos de escritura (world-writable)
+                if stat_info.st_mode & 0o002:
+                    return None
+                return real_path
+
         except (OSError, ValueError):
             return None
         return None
@@ -185,11 +328,21 @@ def validate_editor_command(cmd):
     if cmd_path:
         try:
             real_path = os.path.realpath(cmd_path)
-            if os.path.isfile(real_path) and os.access(real_path, os.X_OK):
-                # Verificar que el archivo no sea demasiado grande (posible malware)
-                file_size = os.path.getsize(real_path)
-                if file_size < 100 * 1024 * 1024:  # Máximo 100MB
-                    return real_path
+
+            # Verificar que existe y es ejecutable
+            if not (os.path.isfile(real_path) and os.access(real_path, os.X_OK)):
+                return None
+
+            # Verificar tamaño
+            file_size = os.path.getsize(real_path)
+            if file_size > 500 * 1024 * 1024:  # Máximo 500MB
+                return None
+
+            # Verificar que esté en la whitelist de editores conocidos
+            if (base_cmd in known_safe_editors or
+                any(editor in real_path.lower() for editor in known_safe_editors)):
+                return real_path
+
         except (OSError, ValueError):
             return None
 
@@ -197,23 +350,52 @@ def validate_editor_command(cmd):
 
 
 def validate_directory(path):
-    """Validar que una ruta sea un directorio válido y accesible"""
+    """Validar que una ruta sea un directorio válido y accesible con protección contra path traversal"""
     if not path or not isinstance(path, str):
         return None
 
     try:
         # Resolver symlinks y normalizar ruta
-        path = os.path.realpath(path)
+        real_path = os.path.realpath(path)
 
         # Verificar que existe y es directorio
-        if not os.path.isdir(path):
+        if not os.path.isdir(real_path):
             return None
 
         # Verificar permisos de lectura
-        if not os.access(path, os.R_OK):
+        if not os.access(real_path, os.R_OK):
             return None
 
-        return path
+        # Protección contra acceso a directorios sensibles del sistema
+        # Rechazar acceso directo a directorios críticos (no sus subdirectorios)
+        forbidden_dirs = {
+            '/root', '/etc', '/sys', '/proc', '/dev', '/boot',
+            '/var/log', '/usr/sbin', '/sbin'
+        }
+
+        # Verificar si es exactamente uno de los directorios prohibidos
+        if real_path in forbidden_dirs:
+            return None
+
+        # Verificar que el directorio está dentro de ubicaciones permitidas
+        # Permitir: /home, /tmp, /var/tmp, /opt (común para software), /usr/local
+        user_home = os.path.expanduser('~')
+        allowed_prefixes = (
+            user_home,  # Home del usuario
+            '/tmp/', '/var/tmp/',  # Directorios temporales
+            '/opt/',  # Software opcional
+            '/usr/local/',  # Software local
+            '/media/', '/mnt/',  # Medios montados
+        )
+
+        # Si la ruta comienza con algún prefijo permitido, está OK
+        if any(real_path.startswith(prefix) or real_path == prefix.rstrip('/')
+               for prefix in allowed_prefixes):
+            return real_path
+
+        # Si no está en prefijos permitidos, rechazar
+        return None
+
     except (OSError, ValueError):
         return None
 
@@ -319,16 +501,23 @@ class FloatingButtonApp:
         self.expand_animation_progress = 0.0
         self.drag_update_pending = False  # Para throttle de actualización durante drag
 
-        # Optimización: Eliminar timers de detección continua - solo detectar al hacer clic
-        self.subprocess_cache = SubprocessCache(ttl=5.0, max_size=50)  # 5 segundos de caché, máximo 50 entradas
+        # Optimización: Cache ahora usa functools.lru_cache en funciones individuales
+        # self.subprocess_cache eliminado - ya no es necesario
         self.focus_timer_id = None
         self.dir_timer_id = None
-        self.recent_activity = False  # Flag para z-order check
+        # self.recent_activity eliminada - ya no se usa timer periódico de z-order
         self.last_directory_detection = 0  # Timestamp de última detección
-        
+
         # CRÍTICO: No iniciar timers de detección - widget siempre visible
         self.check_focus_interval = 0
         self.update_dir_interval = 0
+
+        # Lista de todos los timers activos para cleanup
+        self.active_timers = []
+        # Lock para operaciones thread-safe
+        self.directory_lock = threading.Lock()
+        # Lista de procesos iniciados
+        self.launched_processes = []
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -404,9 +593,6 @@ class FloatingButtonApp:
         # Apply CSS
         self.apply_styles()
 
-        # Apply circular shape after window is realized
-        self.window.connect('realize', self.apply_circular_shape)
-
         # Enable dragging - eventos en la ventana principal
         self.window.connect('button-press-event', self.on_button_press)
         self.window.connect('button-release-event', self.on_button_release)
@@ -420,9 +606,12 @@ class FloatingButtonApp:
                               Gdk.EventMask.BUTTON_RELEASE_MASK |
                               Gdk.EventMask.POINTER_MOTION_MASK)
 
-        # Timer periódico para asegurar z-order correcto (cada 5 segundos, solo si hay actividad)
-        GLib.timeout_add(5000, self._periodic_zorder_check)
+        # OPTIMIZACIÓN: Eliminar timer periódico - usar eventos bajo demanda
+        # El z-order se corregirá solo cuando sea necesario (después de drag/show)
+        # timer_id = GLib.timeout_add(5000, self._periodic_zorder_check)
+        # self.active_timers.append(timer_id)
 
+        self.window.connect('destroy', self.cleanup)
         self.window.connect('destroy', Gtk.main_quit)
 
         # Show window - siempre visible para pruebas
@@ -455,64 +644,73 @@ class FloatingButtonApp:
             warnings.simplefilter("ignore", DeprecationWarning)
             widget.set_opacity(opacity)
 
-    def on_draw(self, widget, cr):
-        """Draw transparent background"""
-        cr.set_source_rgba(0, 0, 0, 0)  # Completely transparent
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.paint()
-        cr.set_operator(cairo.OPERATOR_OVER)
-        return False
+    def cleanup(self, _widget=None):
+        """Limpiar todos los recursos: timers, ventanas, procesos"""
+        self.logger.info("Iniciando cleanup de recursos...")
 
-    def on_draw_overlay(self, widget, cr):
-        """Draw transparent overlay background"""
-        cr.set_source_rgba(0, 0, 0, 0)  # Completely transparent
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.paint()
-        cr.set_operator(cairo.OPERATOR_OVER)
-        return False
+        # 1. Eliminar todos los timers activos
+        for timer_id in self.active_timers:
+            try:
+                if GLib.source_remove(timer_id):
+                    self.logger.debug(f"Timer {timer_id} eliminado")
+            except Exception as e:
+                self.logger.warning(f"Error eliminando timer {timer_id}: {e}")
+        self.active_timers.clear()
 
-    def apply_circular_shape(self, widget):
-        """Apply circular shape to the window to remove square background"""
-        # Create a circular region
-        width = self.button_size
-        height = self.button_size
-        radius = self.button_size // 2
+        # 2. Eliminar timers específicos si existen
+        if self.fade_timer:
+            try:
+                GLib.source_remove(self.fade_timer)
+                self.fade_timer = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando fade_timer: {e}")
 
-        # Create a cairo surface to draw the shape
-        surface = cairo.ImageSurface(cairo.FORMAT_A1, width, height)
-        cr = cairo.Context(surface)
+        if self.animation_timer:
+            try:
+                GLib.source_remove(self.animation_timer)
+                self.animation_timer = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando animation_timer: {e}")
 
-        # Draw a filled circle
-        cr.set_source_rgba(1, 1, 1, 1)
-        cr.arc(radius, radius, radius, 0, 2 * 3.14159)
-        cr.fill()
+        if self.focus_timer_id:
+            try:
+                GLib.source_remove(self.focus_timer_id)
+                self.focus_timer_id = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando focus_timer_id: {e}")
 
-        # Create region from the surface
-        region = Gdk.cairo_region_create_from_surface(surface)
+        if self.dir_timer_id:
+            try:
+                GLib.source_remove(self.dir_timer_id)
+                self.dir_timer_id = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando dir_timer_id: {e}")
 
-        # Apply the shape to the window
-        if self.window.get_window():
-            self.window.get_window().shape_combine_region(region, 0, 0)
-            # Also apply to input shape so clicks outside circle don't register
-            self.window.get_window().input_shape_combine_region(region, 0, 0)
+        # 3. Limpiar cache de subprocess (ahora usa lru_cache - se limpia automáticamente)
+        # No es necesario limpiar manualmente - lru_cache lo gestiona automáticamente
+
+        # 4. Destruir ventana de favoritos
+        if hasattr(self, 'favorites_window'):
+            try:
+                self.favorites_window.destroy()
+                self.logger.debug("favorites_window destruida")
+            except Exception as e:
+                self.logger.warning(f"Error destruyendo favorites_window: {e}")
+
+        # 5. Limpiar procesos lanzados (no matar, solo limpiar referencias)
+        self.launched_processes.clear()
+
+        self.logger.info("Cleanup completado")
 
     def setup_logging(self):
-        """Setup structured logging system"""
+        """Setup advanced logging system with diagnostics"""
         log_dir = get_log_dir()
-        log_file = os.path.join(log_dir, 'widget.log')
-        
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file, encoding='utf-8'),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
-        
-        self.logger = logging.getLogger('NautilusVSCodeWidget')
-        self.logger.info(f"Widget iniciado - Versión {VERSION}")
+
+        # Usar el nuevo sistema de logging optimizado
+        self.logger = setup_advanced_logging(log_dir)
+
+        # Registrar diagnóstico completo del sistema
+        log_system_diagnostics(self.logger)
 
     def load_config(self):
         """Load configuration from file with validation"""
@@ -627,14 +825,13 @@ class FloatingButtonApp:
             with open(self.config_file, 'w') as f:
                 json.dump(self.config, f, indent=2)
         except Exception as e:
-            print(f"Error saving config: {e}")
+            self.logger.error(f"Error saving config: {e}", exc_info=True)
 
     def create_button(self):
         """Create the main button"""
         # Main container - Fixed box en lugar de Overlay
         fixed = Gtk.Fixed()
         fixed.set_app_paintable(True)
-        fixed.connect('draw', self.on_draw_overlay)
         # Forzar tamaño exacto del contenedor - NO permitir expansión
         fixed.set_size_request(self.button_size, self.button_size)
         fixed.set_hexpand(False)
@@ -782,8 +979,6 @@ class FloatingButtonApp:
         if visual:
             self.favorites_window.set_visual(visual)
 
-        self.favorites_window.connect('draw', self.on_draw)
-
         # Crear layout principal para el contenedor
         self.favorites_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.favorites_box.set_halign(Gtk.Align.CENTER)  # Centrar horizontalmente todo el contenedor
@@ -836,7 +1031,7 @@ class FloatingButtonApp:
             # Actualizar posiciones
             self.update_favorite_positions()
         except Exception as e:
-            print(f"Error en _post_rebuild_updates: {e}")
+            self.logger.error(f"Error en _post_rebuild_updates: {e}", exc_info=True)
         return False  # No repetir
 
     def create_add_button_internal(self):
@@ -988,25 +1183,12 @@ class FloatingButtonApp:
                 # Luego subir botón principal
                 self.window.get_window().raise_()
         except Exception as e:
-            print(f"Error en _ensure_correct_zorder: {e}")
+            self.logger.error(f"Error en _ensure_correct_zorder: {e}", exc_info=True)
         return False  # No repetir
 
-    def _periodic_zorder_check(self):
-        """Chequeo periódico para mantener el z-order correcto - solo si hay actividad reciente"""
-        # Solo verificar si hubo actividad reciente
-        if not self.recent_activity:
-            return True  # Continuar timer pero sin hacer nada
-
-        # Resetear flag de actividad
-        self.recent_activity = False
-
-        # Solo corregir si ambas ventanas están visibles
-        if (self.window_opacity > 0 and
-            hasattr(self, 'favorites_window') and
-            self.favorites_window.get_visible()):
-            self._ensure_correct_zorder()
-
-        return True  # Continuar el timer
+    # OPTIMIZACIÓN: Función eliminada - ya no se usa timer periódico
+    # El z-order se corrige bajo demanda llamando a _ensure_correct_zorder()
+    # después de eventos que lo requieran (drag, show, etc.)
 
     def _restore_saved_position(self):
         """Forzar la restauración de la posición guardada en la configuración.
@@ -1300,48 +1482,76 @@ class FloatingButtonApp:
             x, y = self.window.get_position()
             self.drag_offset_x = event.x_root - x
             self.drag_offset_y = event.y_root - y
-            # No capturar el evento para permitir que se propague
-            return False
+            
+            # Forzar captura de eventos para máquinas virtuales
+            widget.grab_add()
+            Gdk.pointer_grab(widget.get_window(), True, 
+                            Gdk.EventMask.BUTTON_RELEASE_MASK | 
+                            Gdk.EventMask.POINTER_MOTION_MASK,
+                            None, None, event.time)
+            
+            self.logger.debug(f"Inicio arrastre - Posición: ({x}, {y}), Offset: ({self.drag_offset_x}, {self.drag_offset_y})")
+            return True  # Capturar el evento para evitar conflictos
         elif event.button == 3:  # Right click
             return self.on_button_right_click(widget, event)
         return False
 
     def on_button_release_event(self, widget, event):
         """Handle button release on the main button"""
-        if event.button == 1:
+        if event.button == 1 and self.dragging:
+            # Liberar captura de eventos
+            widget.grab_remove()
+            Gdk.pointer_ungrab(event.time)
+            
             # Check if it was a drag or a click
-            if self.dragging:
-                drag_distance = ((event.x_root - self.drag_start_x) ** 2 +
-                               (event.y_root - self.drag_start_y) ** 2) ** 0.5
+            drag_distance = ((event.x_root - self.drag_start_x) ** 2 +
+                           (event.y_root - self.drag_start_y) ** 2) ** 0.5
 
-                if drag_distance < 5:  # Less than 5 pixels = click, not drag
-                    # It's a click, trigger the button action
-                    self.dragging = False
-                    return False  # Let the clicked signal handle it
-                else:
-                    # It was a drag
-                    self.dragging = False
-                    # Save new position
-                    x, y = self.window.get_position()
-                    self.config['position_x'] = x
-                    self.config['position_y'] = y
-                    self.save_config()
-                    return True  # Prevent clicked signal
+            if drag_distance < 5:  # Less than 5 pixels = click, not drag
+                # It's a click, trigger the button action
+                self.dragging = False
+                self.logger.debug("Clic detectado (no arrastre)")
+                return False  # Let the clicked signal handle it
+            else:
+                # It was a drag
+                self.dragging = False
+                # Save new position
+                x, y = self.window.get_position()
+                self.config['position_x'] = x
+                self.config['position_y'] = y
+                self.save_config()
+                self.logger.debug(f"Fin arrastre - Nueva posición: ({x}, {y})")
+                return True  # Prevent clicked signal
         return False
 
     def on_button_motion(self, widget, event):
         """Handle mouse motion on the button for dragging"""
         if self.dragging:
-            x = int(event.x_root - self.drag_offset_x)
-            y = int(event.y_root - self.drag_offset_y)
+            try:
+                x = int(event.x_root - self.drag_offset_x)
+                y = int(event.y_root - self.drag_offset_y)
 
-            # Mover ventana principal
-            self.window.move(x, y)
+                # Validar coordenadas para evitar errores en máquinas virtuales
+                screen = Gdk.Screen.get_default()
+                screen_width = screen.get_width()
+                screen_height = screen.get_height()
+                
+                # Limitar coordenadas dentro de la pantalla
+                x = max(0, min(x, screen_width - self.button_size))
+                y = max(0, min(y, screen_height - self.button_size))
 
-            # Actualizar posiciones de favoritos de forma sincronizada
-            self._update_favorites_during_drag(x, y)
+                # Mover ventana principal
+                self.window.move(x, y)
 
-            return True
+                # Actualizar posiciones de favoritos de forma sincronizada
+                self._update_favorites_during_drag(x, y)
+                
+                return True
+            except Exception as e:
+                self.logger.error(f"Error en arrastre: {e}")
+                self.dragging = False
+                widget.grab_remove()
+                Gdk.pointer_ungrab(Gdk.CURRENT_TIME)
         return False
 
     def _update_favorites_during_drag(self, main_x, main_y):
@@ -1370,34 +1580,21 @@ class FloatingButtonApp:
         # Mover ventana de favoritos de forma sincronizada
         self.favorites_window.move(container_x, container_y)
 
-    def on_button_press(self, widget, event):
-        """Handle button press for dragging on window"""
-        if event.button == 1:  # Left click
-            self.dragging = True
-            x, y = self.window.get_position()
-            self.drag_offset_x = event.x_root - x
-            self.drag_offset_y = event.y_root - y
+    # OPTIMIZACIÓN: Manejadores de drag simplificados - removido código duplicado
+    # Los eventos de la ventana principal ya no son necesarios porque
+    # los eventos del botón manejan todo correctamente
 
-    def on_button_release(self, widget, event):
-        """Handle button release on window"""
-        if event.button == 1:
-            self.dragging = False
-            # Save new position
-            x, y = self.window.get_position()
-            self.config['position_x'] = x
-            self.config['position_y'] = y
-            self.save_config()
+    def on_button_press(self, _widget, _event):
+        """Backup handler - normalmente no se usa"""
+        return False  # Dejar que el manejador del botón lo procese
 
-    def on_motion(self, widget, event):
-        """Handle mouse motion for dragging on window"""
-        if self.dragging:
-            x = int(event.x_root - self.drag_offset_x)
-            y = int(event.y_root - self.drag_offset_y)
-            self.window.move(x, y)
-            # Marcar actividad para z-order check
-            self.recent_activity = True
-            # Actualizar posiciones de favoritos de forma sincronizada
-            self._update_favorites_during_drag(x, y)
+    def on_button_release(self, _widget, _event):
+        """Backup handler - normalmente no se usa"""
+        return False  # Dejar que el manejador del botón lo procese
+
+    def on_motion(self, _widget, _event):
+        """Backup handler - normalmente no se usa"""
+        return False  # Dejar que el manejador del botón lo procese
 
 
 
@@ -1412,9 +1609,6 @@ class FloatingButtonApp:
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
 
-        # Marcar actividad para z-order check
-        self.recent_activity = True
-
         # Actualizar posiciones de botones secundarios antes de mostrar
         self.update_favorite_positions()
 
@@ -1425,9 +1619,6 @@ class FloatingButtonApp:
         """Smoothly fade out the button with animations"""
         if self.fade_timer:
             GLib.source_remove(self.fade_timer)
-
-        # Marcar actividad para z-order check
-        self.recent_activity = True
 
         # Animación suave de fade out
         self.animate_fade_out()
@@ -1487,20 +1678,46 @@ class FloatingButtonApp:
             return True
 
     def on_button_clicked(self, button):
-        """Handle button click to open VSCode - detección bajo demanda"""
-        # Ejecutar detección de directorio solo al hacer clic
-        self.current_directory = self.get_nautilus_directory_multiple_methods()
-        
-        # Si no se detectó directorio, usar alternativas inteligentes
-        if not self.current_directory or not os.path.exists(self.current_directory):
-            self.current_directory = self.get_directory_from_fallback()
-        
+        """Handle button click to open VSCode - detección bajo demanda en thread separado"""
+        # Mostrar indicador visual (cambiar opacidad ligeramente)
+        original_opacity = self.window_opacity
+        self.set_window_opacity(0.7)
+
+        # Ejecutar detección de directorio en thread separado para no bloquear UI
+        def detect_and_open():
+            try:
+                # Thread-safe: usar lock para proteger current_directory
+                with self.directory_lock:
+                    detected_dir = self.get_nautilus_directory_multiple_methods()
+
+                    # Si no se detectó directorio, usar alternativas inteligentes
+                    if not detected_dir or not os.path.exists(detected_dir):
+                        detected_dir = self.get_directory_from_fallback()
+
+                    self.current_directory = detected_dir
+
+                # Actualizar UI en el thread principal
+                GLib.idle_add(self._open_editor_callback, original_opacity)
+
+            except Exception as e:
+                self.logger.error(f"Error en detección de directorio: {e}", exc_info=True)
+                GLib.idle_add(self._show_error_callback, str(e), original_opacity)
+
+        # Iniciar thread de detección
+        thread = threading.Thread(target=detect_and_open, daemon=True)
+        thread.start()
+
+    def _open_editor_callback(self, original_opacity):
+        """Callback ejecutado en UI thread después de detectar directorio"""
+        # Restaurar opacidad
+        self.set_window_opacity(original_opacity)
+
         if self.current_directory and os.path.exists(self.current_directory):
             success = self.try_open_with_editor()
             if not success:
                 # If configured editor fails, try common VSCode commands
                 success = self.try_open_with_common_editors()
-                
+
             if not success:
                 self.show_error_dialog(
                     "Editor no encontrado",
@@ -1513,7 +1730,20 @@ class FloatingButtonApp:
                 "No se pudo detectar ninguna carpeta válida.\n"
                 "Abre una ventana de Nautilus o usa la configuración para establecer una carpeta por defecto."
             )
-    
+        return False  # No repetir el callback
+
+    def _show_error_callback(self, error_message, original_opacity):
+        """Callback para mostrar errores en UI thread"""
+        # Restaurar opacidad
+        self.set_window_opacity(original_opacity)
+
+        # Mostrar error
+        self.show_error_dialog(
+            "Error de detección",
+            f"Ocurrió un error al detectar el directorio:\n{error_message}"
+        )
+        return False  # No repetir el callback
+
     def try_open_with_editor(self):
         """Try to open with configured editor (v3.3.1 con validación de seguridad mejorada)"""
         start_time = time.time()
@@ -1542,8 +1772,15 @@ class FloatingButtonApp:
                 start_new_session=True
             )
 
+            # Guardar referencia al proceso para posible cleanup
+            self.launched_processes.append({
+                'pid': process.pid,
+                'cmd': validated_cmd,
+                'time': time.time()
+            })
+
             execution_time = time.time() - start_time
-            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir} (tiempo: {execution_time:.2f}s)")
+            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir} (tiempo: {execution_time:.2f}s, PID: {process.pid})")
             return True
 
         except FileNotFoundError:
@@ -1586,7 +1823,8 @@ class FloatingButtonApp:
                     check_cmd = subprocess.run(
                         ['which', cmd],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        timeout=2
                     )
                     if check_cmd.returncode != 0:
                         continue
@@ -1599,14 +1837,26 @@ class FloatingButtonApp:
                     stdin=subprocess.DEVNULL,
                     start_new_session=True
                 )
-                
-                print(f"Abriendo {self.current_directory} con {cmd}")
+
+                # Guardar referencia al proceso para posible cleanup
+                self.launched_processes.append({
+                    'pid': process.pid,
+                    'cmd': cmd,
+                    'time': time.time()
+                })
+
+                self.logger.info(f"Abriendo {self.current_directory} con {cmd} (PID: {process.pid})")
                 # Update config with working command
                 self.config['editor_command'] = cmd
                 self.save_config()
                 return True
-                
-            except Exception as e:
+
+            except subprocess.TimeoutExpired:
+                self.logger.warning(f"Timeout al verificar comando: {cmd}")
+                continue
+            except (FileNotFoundError, PermissionError, OSError):
+                continue
+            except Exception as _e:
                 continue
         
         return False
@@ -1933,30 +2183,67 @@ class FloatingButtonApp:
         
         return None
     
-    def recursive_folder_search(self, base_dir, target_name, max_depth=2, current_depth=0):
-        """Recursively search for a folder by name"""
+    def recursive_folder_search(self, base_dir, target_name, max_depth=2, current_depth=0, start_time=None):
+        """Recursively search for a folder by name with timeout and better exclusions"""
+        # Iniciar timer en la primera llamada
+        if start_time is None:
+            start_time = time.time()
+
+        # Timeout de 2 segundos para evitar bloqueos
+        if time.time() - start_time > 2.0:
+            self.logger.warning("Búsqueda recursiva timeout después de 2 segundos")
+            return None
+
         if current_depth >= max_depth:
             return None
-            
+
+        # Directorios a excluir (expandida para mejor rendimiento)
+        excluded_dirs = {
+            'node_modules', '__pycache__', '.git', '.svn', '.hg',
+            '.cache', '.config', '.local', '.npm', '.cargo', '.rustup',
+            'venv', 'env', '.venv', '.env', 'virtualenv',
+            'site-packages', 'dist', 'build', '.tox',
+            'snap', 'flatpak', '.wine', '.steam',
+            '.mozilla', '.thunderbird', '.var'
+        }
+
         try:
-            for item in os.listdir(base_dir):
-                item_path = os.path.join(base_dir, item)
-                
-                # Check if this item matches our target
-                if os.path.isdir(item_path) and item.lower() == target_name.lower():
-                    return item_path
-                
-                # Recurse into subdirectories
-                if os.path.isdir(item_path) and current_depth < max_depth - 1:
-                    # Skip hidden directories and common system directories
-                    if not item.startswith('.') and item not in ['node_modules', '__pycache__', '.git']:
-                        result = self.recursive_folder_search(item_path, target_name, max_depth, current_depth + 1)
-                        if result:
-                            return result
-        
-        except PermissionError:
-            pass
-        
+            # Usar scandir() en lugar de listdir() para mejor rendimiento
+            with os.scandir(base_dir) as entries:
+                for entry in entries:
+                    # Verificar timeout en cada iteración
+                    if time.time() - start_time > 2.0:
+                        return None
+
+                    try:
+                        # Saltar archivos, solo procesar directorios
+                        if not entry.is_dir(follow_symlinks=False):
+                            continue
+
+                        # Saltar directorios ocultos y excluidos
+                        if entry.name.startswith('.') or entry.name in excluded_dirs:
+                            continue
+
+                        # Check if this item matches our target
+                        if entry.name.lower() == target_name.lower():
+                            return entry.path
+
+                        # Recurse into subdirectories
+                        if current_depth < max_depth - 1:
+                            result = self.recursive_folder_search(
+                                entry.path, target_name, max_depth,
+                                current_depth + 1, start_time
+                            )
+                            if result:
+                                return result
+
+                    except (PermissionError, OSError):
+                        # Saltar directorios sin permisos o con errores
+                        continue
+
+        except (PermissionError, OSError) as e:
+            self.logger.debug(f"Error accediendo a {base_dir}: {e}")
+
         return None
 
     def update_tooltip(self):
@@ -2235,7 +2522,7 @@ class SettingsDialog:
             desktop_file = get_autostart_file()
             return os.path.exists(desktop_file)
         except Exception as e:
-            print(f"Error verificando autostart: {e}")
+            self.app.logger.error(f"Error verificando autostart: {e}", exc_info=True)
             return False
 
     def enable_autostart(self):
@@ -2272,12 +2559,12 @@ StartupNotify=false
             # Make it executable
             os.chmod(desktop_file, 0o755)
 
-            print(f"Autostart habilitado: {desktop_file}")
+            self.app.logger.info(f"Autostart habilitado: {desktop_file}")
             if self.app.is_portable:
-                print(f"Modo portable: ejecutable en {exec_path}")
+                self.app.logger.info(f"Modo portable: ejecutable en {exec_path}")
 
         except Exception as e:
-            print(f"Error habilitando autostart: {e}")
+            self.app.logger.error(f"Error habilitando autostart: {e}", exc_info=True)
 
     def disable_autostart(self):
         """Disable autostart by removing .desktop file"""
@@ -2285,9 +2572,9 @@ StartupNotify=false
             desktop_file = get_autostart_file()
             if os.path.exists(desktop_file):
                 os.remove(desktop_file)
-                print("Autostart deshabilitado")
+                self.app.logger.info("Autostart deshabilitado")
         except Exception as e:
-            print(f"Error deshabilitando autostart: {e}")
+            self.app.logger.error(f"Error deshabilitando autostart: {e}", exc_info=True)
 
     def on_browse_editor(self, button):
         """Open file chooser to select editor executable"""
