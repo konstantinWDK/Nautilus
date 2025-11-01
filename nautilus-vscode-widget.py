@@ -33,11 +33,15 @@ except ImportError:
 
 
 class SubprocessCache:
-    """Cache para resultados de subprocess con TTL mejorado"""
-    def __init__(self, ttl=5.0, max_size=50):
+    """Cache para resultados de subprocess con TTL mejorado y cleanup automático"""
+    def __init__(self, ttl=5.0, max_size=50, memory_limit_mb=10):
         self.cache = {}
         self.ttl = ttl
         self.max_size = max_size
+        self.memory_limit_mb = memory_limit_mb
+        self.hits = 0
+        self.misses = 0
+        self.cleanup_timer = GLib.timeout_add(30000, self._periodic_cleanup)  # Cleanup cada 30 segundos
 
     def get(self, key, func):
         """Obtener resultado cacheado o ejecutar función"""
@@ -45,21 +49,33 @@ class SubprocessCache:
         if key in self.cache:
             result, timestamp = self.cache[key]
             if now - timestamp < self.ttl:
+                self.hits += 1
                 return result
 
+        self.misses += 1
         result = func()
         self.cache[key] = (result, now)
 
-        # Limpiar cache si excede el tamaño máximo
-        if len(self.cache) > self.max_size:
+        # Limpiar cache si excede el tamaño máximo o límite de memoria
+        if len(self.cache) > self.max_size or self._estimate_memory_usage() > self.memory_limit_mb * 1024 * 1024:
             self._cleanup_old_entries()
 
         return result
 
+    def _estimate_memory_usage(self):
+        """Estimar uso de memoria del cache"""
+        import sys
+        total_size = 0
+        for key, (value, timestamp) in self.cache.items():
+            total_size += sys.getsizeof(key)
+            total_size += sys.getsizeof(value)
+            total_size += sys.getsizeof(timestamp)
+        return total_size
+
     def _cleanup_old_entries(self):
         """Eliminar entradas más antiguas si el cache es muy grande"""
         now = time.time()
-        # Eliminar entradas expiradas
+        # Eliminar entradas expiradas primero
         expired_keys = [k for k, (_, ts) in self.cache.items() if now - ts >= self.ttl]
         for key in expired_keys:
             del self.cache[key]
@@ -71,9 +87,35 @@ class SubprocessCache:
             for key, _ in sorted_items[:to_remove]:
                 del self.cache[key]
 
+    def _periodic_cleanup(self):
+        """Cleanup periódico automático"""
+        self._cleanup_old_entries()
+        return True  # Continuar el timer
+
+    def get_stats(self):
+        """Obtener estadísticas del cache"""
+        hit_rate = self.hits / (self.hits + self.misses) if (self.hits + self.misses) > 0 else 0
+        return {
+            'size': len(self.cache),
+            'hits': self.hits,
+            'misses': self.misses,
+            'hit_rate': hit_rate,
+            'memory_usage_mb': self._estimate_memory_usage() / (1024 * 1024)
+        }
+
     def clear(self):
         """Limpiar caché"""
         self.cache.clear()
+        self.hits = 0
+        self.misses = 0
+
+    def __del__(self):
+        """Destructor para limpiar recursos"""
+        try:
+            if hasattr(self, 'cleanup_timer'):
+                GLib.source_remove(self.cleanup_timer)
+        except Exception:
+            pass  # Ignorar errores durante la destrucción
 
 
 def detect_environment():
@@ -98,23 +140,58 @@ def detect_environment():
 
 
 def validate_editor_command(cmd):
-    """Validar que un comando de editor sea seguro y ejecutable"""
+    """Validar que un comando de editor sea seguro y ejecutable con mejoras de seguridad"""
     if not cmd or not isinstance(cmd, str):
         return None
 
-    # Remover espacios
+    # Remover espacios y caracteres peligrosos
     cmd = cmd.strip()
+    
+    # Lista de comandos peligrosos que no deberían ejecutarse
+    dangerous_commands = [
+        'rm', 'sudo', 'su', 'chmod', 'chown', 'dd', 'mkfs', 'fdisk',
+        'shutdown', 'reboot', 'halt', 'poweroff', 'init', 'killall'
+    ]
+    
+    # Verificar si el comando está en la lista de peligrosos
+    base_cmd = cmd.split()[0] if ' ' in cmd else cmd
+    if base_cmd in dangerous_commands:
+        return None
 
     # Verificar si es una ruta absoluta
     if os.path.isabs(cmd):
-        if os.path.isfile(cmd) and os.access(cmd, os.X_OK):
-            return cmd
+        try:
+            # Resolver symlinks para evitar ataques
+            real_path = os.path.realpath(cmd)
+            if os.path.isfile(real_path) and os.access(real_path, os.X_OK):
+                # Verificar que no sea un archivo del sistema crítico
+                system_dirs = ['/bin', '/sbin', '/usr/bin', '/usr/sbin', '/usr/local/bin']
+                if any(real_path.startswith(dir_path) for dir_path in system_dirs):
+                    # Solo permitir ejecutables en directorios del sistema si son editores conocidos
+                    known_editors = ['code', 'vim', 'nano', 'emacs', 'gedit', 'kate', 'sublime_text']
+                    if any(editor in real_path.lower() for editor in known_editors):
+                        return real_path
+                else:
+                    # Para rutas fuera de directorios del sistema, verificar permisos más estrictos
+                    stat_info = os.stat(real_path)
+                    if stat_info.st_uid == os.getuid():  # Archivo pertenece al usuario actual
+                        return real_path
+        except (OSError, ValueError):
+            return None
         return None
 
-    # Buscar en PATH
+    # Buscar en PATH con validación de seguridad
     cmd_path = shutil.which(cmd)
-    if cmd_path and os.access(cmd_path, os.X_OK):
-        return cmd_path
+    if cmd_path:
+        try:
+            real_path = os.path.realpath(cmd_path)
+            if os.path.isfile(real_path) and os.access(real_path, os.X_OK):
+                # Verificar que el archivo no sea demasiado grande (posible malware)
+                file_size = os.path.getsize(real_path)
+                if file_size < 100 * 1024 * 1024:  # Máximo 100MB
+                    return real_path
+        except (OSError, ValueError):
+            return None
 
     return None
 
@@ -1438,9 +1515,11 @@ class FloatingButtonApp:
             )
     
     def try_open_with_editor(self):
-        """Try to open with configured editor (v3.3.1 con validación de seguridad)"""
+        """Try to open with configured editor (v3.3.1 con validación de seguridad mejorada)"""
+        start_time = time.time()
         try:
             editor_cmd = self.config.get('editor_command', 'code')
+            self.logger.debug(f"Intentando abrir editor: {editor_cmd} -> {self.current_directory}")
 
             # Validar comando de editor (v3.3.1)
             validated_cmd = validate_editor_command(editor_cmd)
@@ -1463,7 +1542,8 @@ class FloatingButtonApp:
                 start_new_session=True
             )
 
-            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir}")
+            execution_time = time.time() - start_time
+            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir} (tiempo: {execution_time:.2f}s)")
             return True
 
         except FileNotFoundError:
@@ -1472,8 +1552,11 @@ class FloatingButtonApp:
         except PermissionError:
             self.logger.error(f"Sin permisos para ejecutar: {editor_cmd}")
             return False
+        except subprocess.TimeoutExpired:
+            self.logger.error(f"Timeout al abrir editor: {editor_cmd}")
+            return False
         except Exception as e:
-            self.logger.error(f"Error al abrir editor: {e}")
+            self.logger.error(f"Error al abrir editor: {e}", exc_info=True)
             return False
     
     def try_open_with_common_editors(self):
@@ -1534,21 +1617,28 @@ class FloatingButtonApp:
         return True  # Mantener para compatibilidad
 
     def get_nautilus_directory_multiple_methods(self):
-        """Try multiple methods to get the current Nautilus directory"""
+        """Try multiple methods to get the current Nautilus directory with improved logging"""
+        start_time = time.time()
         methods = [
-            self.get_directory_from_dbus,  # Más confiable para Nautilus moderno
-            self.get_directory_from_active_nautilus_window,
-            self.get_directory_from_fallback
+            ("DBus", self.get_directory_from_dbus),  # Más confiable para Nautilus moderno
+            ("Active Window", self.get_directory_from_active_nautilus_window),
+            ("Fallback", self.get_directory_from_fallback)
         ]
 
-        for method in methods:
+        for method_name, method in methods:
             try:
+                self.logger.debug(f"Intentando método de detección: {method_name}")
                 directory = method()
                 if directory and os.path.exists(directory):
+                    execution_time = time.time() - start_time
+                    self.logger.info(f"Directorio detectado con {method_name}: {directory} (tiempo: {execution_time:.2f}s)")
                     return directory
-            except Exception:
+            except Exception as e:
+                self.logger.debug(f"Método {method_name} falló: {e}")
                 continue
 
+        execution_time = time.time() - start_time
+        self.logger.warning(f"No se pudo detectar directorio con ningún método (tiempo: {execution_time:.2f}s)")
         return None
 
     def get_directory_from_dbus(self):
