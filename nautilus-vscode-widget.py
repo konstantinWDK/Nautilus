@@ -6,7 +6,7 @@ y permite abrirla en VSCode
 """
 
 # Version
-VERSION = "3.3.9"
+VERSION = "3.3.10"
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -600,11 +600,8 @@ class FloatingButtonApp:
         self.window.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
                               Gdk.EventMask.BUTTON_RELEASE_MASK |
                               Gdk.EventMask.POINTER_MOTION_MASK)
-        
-        # CRÍTICO: También habilitar eventos en el botón para capturar clics
-        self.button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
-                              Gdk.EventMask.BUTTON_RELEASE_MASK |
-                              Gdk.EventMask.POINTER_MOTION_MASK)
+
+        # NOTA: Los eventos del botón se habilitan en create_button() después de que el widget esté creado
 
         # OPTIMIZACIÓN: Eliminar timer periódico - usar eventos bajo demanda
         # El z-order se corregirá solo cuando sea necesario (después de drag/show)
@@ -933,17 +930,28 @@ class FloatingButtonApp:
 
         self.button.add(box)
 
-        # Habilitar eventos de mouse en el botón
-        self.button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
-                              Gdk.EventMask.BUTTON_RELEASE_MASK |
-                              Gdk.EventMask.POINTER_MOTION_MASK)
-
+        # Conectar eventos del botón
         self.button.connect('clicked', self.on_button_clicked)
 
         # Right-click menu y drag con click largo
         self.button.connect('button-press-event', self.on_button_press_event)
         self.button.connect('button-release-event', self.on_button_release_event)
         self.button.connect('motion-notify-event', self.on_button_motion)
+
+        # Habilitar eventos de mouse DESPUÉS de que el widget esté realizado
+        # Esto previene problemas en la primera instalación
+        def enable_button_events(widget):
+            """Habilitar eventos cuando el widget esté realizado"""
+            try:
+                widget.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                                 Gdk.EventMask.BUTTON_RELEASE_MASK |
+                                 Gdk.EventMask.POINTER_MOTION_MASK)
+                self.logger.debug("Eventos del botón habilitados correctamente")
+            except Exception as e:
+                self.logger.warning(f"No se pudieron habilitar eventos del botón: {e}")
+            return False  # Desconectar el callback
+
+        self.button.connect('realize', enable_button_events)
 
         # Añadir botón al Fixed container en posición 0,0
         fixed.put(self.button, 0, 0)

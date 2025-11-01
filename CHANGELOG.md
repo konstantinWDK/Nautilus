@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto serán documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [3.3.10] - 2025-11-01
+
+### 🔧 Corrección Crítica - Widget No Arrastrable en Primera Instalación
+
+#### Problema Resuelto
+- **FIX**: Widget no se podía mover/arrastrar después de la primera instalación del .deb
+- **Causa**: Los eventos de mouse (`add_events()`) se llamaban antes de que el widget estuviera realizado
+- **Solución**: Mover `add_events()` al callback `realize` del botón
+
+#### Cambios Técnicos
+- Eliminado llamada duplicada a `add_events()` en la inicialización principal
+- Los eventos del botón ahora se habilitan en el callback `realize` signal
+- Añadido logging para confirmar que los eventos se habilitan correctamente
+- Mejora la confiabilidad en diferentes entornos y timing de inicialización
+
+#### Impacto
+- ✅ Widget ahora se puede arrastrar correctamente desde el primer inicio
+- ✅ Funciona en instalaciones nuevas y actualizaciones
+- ✅ Sin cambios en el comportamiento para instalaciones existentes
+- ✅ Logging adicional para diagnóstico de eventos
+
 ## [3.3.9] - 2025-11-01
 
 ### 🔍 Sistema de Logging Optimizado y Diagnóstico Avanzado
