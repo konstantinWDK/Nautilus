@@ -20,6 +20,7 @@ import time
 import logging
 import sys
 import shutil
+import threading
 from datetime import datetime
 
 # Importaciones opcionales según el entorno
@@ -143,38 +144,72 @@ def validate_editor_command(cmd):
     if not cmd or not isinstance(cmd, str):
         return None
 
-    # Remover espacios y caracteres peligrosos
+    # Remover espacios y validar que no contenga argumentos peligrosos
     cmd = cmd.strip()
-    
-    # Lista de comandos peligrosos que no deberían ejecutarse
-    dangerous_commands = [
+
+    # NO permitir comandos con argumentos - solo el ejecutable
+    # Los argumentos se añadirán de forma controlada al ejecutar
+    if ' ' in cmd:
+        # Si tiene espacios, solo tomar el primer elemento (el comando)
+        cmd = cmd.split()[0]
+
+    # Lista expandida de comandos peligrosos que no deberían ejecutarse
+    dangerous_commands = {
         'rm', 'sudo', 'su', 'chmod', 'chown', 'dd', 'mkfs', 'fdisk',
-        'shutdown', 'reboot', 'halt', 'poweroff', 'init', 'killall'
-    ]
-    
+        'shutdown', 'reboot', 'halt', 'poweroff', 'init', 'killall',
+        'pkill', 'kill', 'systemctl', 'service', 'bash', 'sh', 'zsh',
+        'python', 'perl', 'ruby', 'node', 'wget', 'curl', 'nc', 'netcat'
+    }
+
+    # Obtener nombre base del comando
+    base_cmd = os.path.basename(cmd)
+
     # Verificar si el comando está en la lista de peligrosos
-    base_cmd = cmd.split()[0] if ' ' in cmd else cmd
-    if base_cmd in dangerous_commands:
+    if base_cmd in dangerous_commands or base_cmd.startswith('rm'):
         return None
+
+    # Lista blanca de editores conocidos y seguros
+    known_safe_editors = {
+        'code', 'code-insiders', 'codium', 'vscodium',
+        'vim', 'nvim', 'vi', 'nano', 'emacs', 'gedit', 'kate',
+        'sublime_text', 'subl', 'atom', 'notepad++',
+        'mousepad', 'pluma', 'xed', 'geany', 'brackets'
+    }
 
     # Verificar si es una ruta absoluta
     if os.path.isabs(cmd):
         try:
             # Resolver symlinks para evitar ataques
             real_path = os.path.realpath(cmd)
-            if os.path.isfile(real_path) and os.access(real_path, os.X_OK):
-                # Verificar que no sea un archivo del sistema crítico
-                system_dirs = ['/bin', '/sbin', '/usr/bin', '/usr/sbin', '/usr/local/bin']
-                if any(real_path.startswith(dir_path) for dir_path in system_dirs):
-                    # Solo permitir ejecutables en directorios del sistema si son editores conocidos
-                    known_editors = ['code', 'vim', 'nano', 'emacs', 'gedit', 'kate', 'sublime_text']
-                    if any(editor in real_path.lower() for editor in known_editors):
-                        return real_path
-                else:
-                    # Para rutas fuera de directorios del sistema, verificar permisos más estrictos
-                    stat_info = os.stat(real_path)
-                    if stat_info.st_uid == os.getuid():  # Archivo pertenece al usuario actual
-                        return real_path
+
+            # Verificar que existe y es ejecutable
+            if not (os.path.isfile(real_path) and os.access(real_path, os.X_OK)):
+                return None
+
+            # Verificar que el archivo no sea demasiado grande (posible malware)
+            file_size = os.path.getsize(real_path)
+            if file_size > 500 * 1024 * 1024:  # Máximo 500MB
+                return None
+
+            # Verificar que el nombre base esté en la whitelist o sea un editor conocido
+            if (base_cmd in known_safe_editors or
+                any(editor in real_path.lower() for editor in known_safe_editors)):
+                return real_path
+
+            # Si está en directorios del sistema, rechazar si no está en whitelist
+            system_dirs = ['/bin/', '/sbin/', '/usr/bin/', '/usr/sbin/', '/usr/local/bin/']
+            if any(real_path.startswith(dir_path) for dir_path in system_dirs):
+                return None
+
+            # Para rutas fuera de directorios del sistema, verificar ownership
+            stat_info = os.stat(real_path)
+            if stat_info.st_uid == os.getuid():
+                # Archivo pertenece al usuario actual - verificar permisos
+                # Rechazar si otros tienen permisos de escritura (world-writable)
+                if stat_info.st_mode & 0o002:
+                    return None
+                return real_path
+
         except (OSError, ValueError):
             return None
         return None
@@ -184,11 +219,21 @@ def validate_editor_command(cmd):
     if cmd_path:
         try:
             real_path = os.path.realpath(cmd_path)
-            if os.path.isfile(real_path) and os.access(real_path, os.X_OK):
-                # Verificar que el archivo no sea demasiado grande (posible malware)
-                file_size = os.path.getsize(real_path)
-                if file_size < 100 * 1024 * 1024:  # Máximo 100MB
-                    return real_path
+
+            # Verificar que existe y es ejecutable
+            if not (os.path.isfile(real_path) and os.access(real_path, os.X_OK)):
+                return None
+
+            # Verificar tamaño
+            file_size = os.path.getsize(real_path)
+            if file_size > 500 * 1024 * 1024:  # Máximo 500MB
+                return None
+
+            # Verificar que esté en la whitelist de editores conocidos
+            if (base_cmd in known_safe_editors or
+                any(editor in real_path.lower() for editor in known_safe_editors)):
+                return real_path
+
         except (OSError, ValueError):
             return None
 
@@ -196,23 +241,52 @@ def validate_editor_command(cmd):
 
 
 def validate_directory(path):
-    """Validar que una ruta sea un directorio válido y accesible"""
+    """Validar que una ruta sea un directorio válido y accesible con protección contra path traversal"""
     if not path or not isinstance(path, str):
         return None
 
     try:
         # Resolver symlinks y normalizar ruta
-        path = os.path.realpath(path)
+        real_path = os.path.realpath(path)
 
         # Verificar que existe y es directorio
-        if not os.path.isdir(path):
+        if not os.path.isdir(real_path):
             return None
 
         # Verificar permisos de lectura
-        if not os.access(path, os.R_OK):
+        if not os.access(real_path, os.R_OK):
             return None
 
-        return path
+        # Protección contra acceso a directorios sensibles del sistema
+        # Rechazar acceso directo a directorios críticos (no sus subdirectorios)
+        forbidden_dirs = {
+            '/root', '/etc', '/sys', '/proc', '/dev', '/boot',
+            '/var/log', '/usr/sbin', '/sbin'
+        }
+
+        # Verificar si es exactamente uno de los directorios prohibidos
+        if real_path in forbidden_dirs:
+            return None
+
+        # Verificar que el directorio está dentro de ubicaciones permitidas
+        # Permitir: /home, /tmp, /var/tmp, /opt (común para software), /usr/local
+        user_home = os.path.expanduser('~')
+        allowed_prefixes = (
+            user_home,  # Home del usuario
+            '/tmp/', '/var/tmp/',  # Directorios temporales
+            '/opt/',  # Software opcional
+            '/usr/local/',  # Software local
+            '/media/', '/mnt/',  # Medios montados
+        )
+
+        # Si la ruta comienza con algún prefijo permitido, está OK
+        if any(real_path.startswith(prefix) or real_path == prefix.rstrip('/')
+               for prefix in allowed_prefixes):
+            return real_path
+
+        # Si no está en prefijos permitidos, rechazar
+        return None
+
     except (OSError, ValueError):
         return None
 
@@ -324,10 +398,17 @@ class FloatingButtonApp:
         self.dir_timer_id = None
         self.recent_activity = False  # Flag para z-order check
         self.last_directory_detection = 0  # Timestamp de última detección
-        
+
         # CRÍTICO: No iniciar timers de detección - widget siempre visible
         self.check_focus_interval = 0
         self.update_dir_interval = 0
+
+        # Lista de todos los timers activos para cleanup
+        self.active_timers = []
+        # Lock para operaciones thread-safe
+        self.directory_lock = threading.Lock()
+        # Lista de procesos iniciados
+        self.launched_processes = []
 
         # Create floating button window
         self.window = Gtk.Window()
@@ -417,8 +498,10 @@ class FloatingButtonApp:
                               Gdk.EventMask.POINTER_MOTION_MASK)
 
         # Timer periódico para asegurar z-order correcto (cada 5 segundos, solo si hay actividad)
-        GLib.timeout_add(5000, self._periodic_zorder_check)
+        timer_id = GLib.timeout_add(5000, self._periodic_zorder_check)
+        self.active_timers.append(timer_id)
 
+        self.window.connect('destroy', self.cleanup)
         self.window.connect('destroy', Gtk.main_quit)
 
         # Show window - siempre visible para pruebas
@@ -451,6 +534,68 @@ class FloatingButtonApp:
             warnings.simplefilter("ignore", DeprecationWarning)
             widget.set_opacity(opacity)
 
+    def cleanup(self, _widget=None):
+        """Limpiar todos los recursos: timers, ventanas, procesos"""
+        self.logger.info("Iniciando cleanup de recursos...")
+
+        # 1. Eliminar todos los timers activos
+        for timer_id in self.active_timers:
+            try:
+                if GLib.source_remove(timer_id):
+                    self.logger.debug(f"Timer {timer_id} eliminado")
+            except Exception as e:
+                self.logger.warning(f"Error eliminando timer {timer_id}: {e}")
+        self.active_timers.clear()
+
+        # 2. Eliminar timers específicos si existen
+        if self.fade_timer:
+            try:
+                GLib.source_remove(self.fade_timer)
+                self.fade_timer = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando fade_timer: {e}")
+
+        if self.animation_timer:
+            try:
+                GLib.source_remove(self.animation_timer)
+                self.animation_timer = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando animation_timer: {e}")
+
+        if self.focus_timer_id:
+            try:
+                GLib.source_remove(self.focus_timer_id)
+                self.focus_timer_id = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando focus_timer_id: {e}")
+
+        if self.dir_timer_id:
+            try:
+                GLib.source_remove(self.dir_timer_id)
+                self.dir_timer_id = None
+            except Exception as e:
+                self.logger.warning(f"Error eliminando dir_timer_id: {e}")
+
+        # 3. Limpiar cache de subprocess
+        if hasattr(self, 'subprocess_cache'):
+            try:
+                self.subprocess_cache.clear()
+                self.logger.debug("Cache de subprocess limpiado")
+            except Exception as e:
+                self.logger.warning(f"Error limpiando subprocess_cache: {e}")
+
+        # 4. Destruir ventana de favoritos
+        if hasattr(self, 'favorites_window'):
+            try:
+                self.favorites_window.destroy()
+                self.logger.debug("favorites_window destruida")
+            except Exception as e:
+                self.logger.warning(f"Error destruyendo favorites_window: {e}")
+
+        # 5. Limpiar procesos lanzados (no matar, solo limpiar referencias)
+        self.launched_processes.clear()
+
+        self.logger.info("Cleanup completado")
 
     def setup_logging(self):
         """Setup structured logging system"""
@@ -1489,20 +1634,46 @@ class FloatingButtonApp:
             return True
 
     def on_button_clicked(self, button):
-        """Handle button click to open VSCode - detección bajo demanda"""
-        # Ejecutar detección de directorio solo al hacer clic
-        self.current_directory = self.get_nautilus_directory_multiple_methods()
-        
-        # Si no se detectó directorio, usar alternativas inteligentes
-        if not self.current_directory or not os.path.exists(self.current_directory):
-            self.current_directory = self.get_directory_from_fallback()
-        
+        """Handle button click to open VSCode - detección bajo demanda en thread separado"""
+        # Mostrar indicador visual (cambiar opacidad ligeramente)
+        original_opacity = self.window_opacity
+        self.set_window_opacity(0.7)
+
+        # Ejecutar detección de directorio en thread separado para no bloquear UI
+        def detect_and_open():
+            try:
+                # Thread-safe: usar lock para proteger current_directory
+                with self.directory_lock:
+                    detected_dir = self.get_nautilus_directory_multiple_methods()
+
+                    # Si no se detectó directorio, usar alternativas inteligentes
+                    if not detected_dir or not os.path.exists(detected_dir):
+                        detected_dir = self.get_directory_from_fallback()
+
+                    self.current_directory = detected_dir
+
+                # Actualizar UI en el thread principal
+                GLib.idle_add(self._open_editor_callback, original_opacity)
+
+            except Exception as e:
+                self.logger.error(f"Error en detección de directorio: {e}", exc_info=True)
+                GLib.idle_add(self._show_error_callback, str(e), original_opacity)
+
+        # Iniciar thread de detección
+        thread = threading.Thread(target=detect_and_open, daemon=True)
+        thread.start()
+
+    def _open_editor_callback(self, original_opacity):
+        """Callback ejecutado en UI thread después de detectar directorio"""
+        # Restaurar opacidad
+        self.set_window_opacity(original_opacity)
+
         if self.current_directory and os.path.exists(self.current_directory):
             success = self.try_open_with_editor()
             if not success:
                 # If configured editor fails, try common VSCode commands
                 success = self.try_open_with_common_editors()
-                
+
             if not success:
                 self.show_error_dialog(
                     "Editor no encontrado",
@@ -1515,7 +1686,20 @@ class FloatingButtonApp:
                 "No se pudo detectar ninguna carpeta válida.\n"
                 "Abre una ventana de Nautilus o usa la configuración para establecer una carpeta por defecto."
             )
-    
+        return False  # No repetir el callback
+
+    def _show_error_callback(self, error_message, original_opacity):
+        """Callback para mostrar errores en UI thread"""
+        # Restaurar opacidad
+        self.set_window_opacity(original_opacity)
+
+        # Mostrar error
+        self.show_error_dialog(
+            "Error de detección",
+            f"Ocurrió un error al detectar el directorio:\n{error_message}"
+        )
+        return False  # No repetir el callback
+
     def try_open_with_editor(self):
         """Try to open with configured editor (v3.3.1 con validación de seguridad mejorada)"""
         start_time = time.time()
@@ -1544,8 +1728,15 @@ class FloatingButtonApp:
                 start_new_session=True
             )
 
+            # Guardar referencia al proceso para posible cleanup
+            self.launched_processes.append({
+                'pid': process.pid,
+                'cmd': validated_cmd,
+                'time': time.time()
+            })
+
             execution_time = time.time() - start_time
-            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir} (tiempo: {execution_time:.2f}s)")
+            self.logger.info(f"Editor abierto exitosamente: {validated_cmd} -> {validated_dir} (tiempo: {execution_time:.2f}s, PID: {process.pid})")
             return True
 
         except FileNotFoundError:
@@ -1588,7 +1779,8 @@ class FloatingButtonApp:
                     check_cmd = subprocess.run(
                         ['which', cmd],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        timeout=2
                     )
                     if check_cmd.returncode != 0:
                         continue
@@ -1601,14 +1793,26 @@ class FloatingButtonApp:
                     stdin=subprocess.DEVNULL,
                     start_new_session=True
                 )
-                
-                print(f"Abriendo {self.current_directory} con {cmd}")
+
+                # Guardar referencia al proceso para posible cleanup
+                self.launched_processes.append({
+                    'pid': process.pid,
+                    'cmd': cmd,
+                    'time': time.time()
+                })
+
+                self.logger.info(f"Abriendo {self.current_directory} con {cmd} (PID: {process.pid})")
                 # Update config with working command
                 self.config['editor_command'] = cmd
                 self.save_config()
                 return True
-                
-            except Exception as e:
+
+            except subprocess.TimeoutExpired:
+                self.logger.warning(f"Timeout al verificar comando: {cmd}")
+                continue
+            except (FileNotFoundError, PermissionError, OSError):
+                continue
+            except Exception as _e:
                 continue
         
         return False
@@ -1935,30 +2139,67 @@ class FloatingButtonApp:
         
         return None
     
-    def recursive_folder_search(self, base_dir, target_name, max_depth=2, current_depth=0):
-        """Recursively search for a folder by name"""
+    def recursive_folder_search(self, base_dir, target_name, max_depth=2, current_depth=0, start_time=None):
+        """Recursively search for a folder by name with timeout and better exclusions"""
+        # Iniciar timer en la primera llamada
+        if start_time is None:
+            start_time = time.time()
+
+        # Timeout de 2 segundos para evitar bloqueos
+        if time.time() - start_time > 2.0:
+            self.logger.warning("Búsqueda recursiva timeout después de 2 segundos")
+            return None
+
         if current_depth >= max_depth:
             return None
-            
+
+        # Directorios a excluir (expandida para mejor rendimiento)
+        excluded_dirs = {
+            'node_modules', '__pycache__', '.git', '.svn', '.hg',
+            '.cache', '.config', '.local', '.npm', '.cargo', '.rustup',
+            'venv', 'env', '.venv', '.env', 'virtualenv',
+            'site-packages', 'dist', 'build', '.tox',
+            'snap', 'flatpak', '.wine', '.steam',
+            '.mozilla', '.thunderbird', '.var'
+        }
+
         try:
-            for item in os.listdir(base_dir):
-                item_path = os.path.join(base_dir, item)
-                
-                # Check if this item matches our target
-                if os.path.isdir(item_path) and item.lower() == target_name.lower():
-                    return item_path
-                
-                # Recurse into subdirectories
-                if os.path.isdir(item_path) and current_depth < max_depth - 1:
-                    # Skip hidden directories and common system directories
-                    if not item.startswith('.') and item not in ['node_modules', '__pycache__', '.git']:
-                        result = self.recursive_folder_search(item_path, target_name, max_depth, current_depth + 1)
-                        if result:
-                            return result
-        
-        except PermissionError:
-            pass
-        
+            # Usar scandir() en lugar de listdir() para mejor rendimiento
+            with os.scandir(base_dir) as entries:
+                for entry in entries:
+                    # Verificar timeout en cada iteración
+                    if time.time() - start_time > 2.0:
+                        return None
+
+                    try:
+                        # Saltar archivos, solo procesar directorios
+                        if not entry.is_dir(follow_symlinks=False):
+                            continue
+
+                        # Saltar directorios ocultos y excluidos
+                        if entry.name.startswith('.') or entry.name in excluded_dirs:
+                            continue
+
+                        # Check if this item matches our target
+                        if entry.name.lower() == target_name.lower():
+                            return entry.path
+
+                        # Recurse into subdirectories
+                        if current_depth < max_depth - 1:
+                            result = self.recursive_folder_search(
+                                entry.path, target_name, max_depth,
+                                current_depth + 1, start_time
+                            )
+                            if result:
+                                return result
+
+                    except (PermissionError, OSError):
+                        # Saltar directorios sin permisos o con errores
+                        continue
+
+        except (PermissionError, OSError) as e:
+            self.logger.debug(f"Error accediendo a {base_dir}: {e}")
+
         return None
 
     def update_tooltip(self):
