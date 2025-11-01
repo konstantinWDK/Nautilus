@@ -1253,48 +1253,76 @@ class FloatingButtonApp:
             x, y = self.window.get_position()
             self.drag_offset_x = event.x_root - x
             self.drag_offset_y = event.y_root - y
-            # No capturar el evento para permitir que se propague
-            return False
+            
+            # Forzar captura de eventos para máquinas virtuales
+            widget.grab_add()
+            Gdk.pointer_grab(widget.get_window(), True, 
+                            Gdk.EventMask.BUTTON_RELEASE_MASK | 
+                            Gdk.EventMask.POINTER_MOTION_MASK,
+                            None, None, event.time)
+            
+            self.logger.debug(f"Inicio arrastre - Posición: ({x}, {y}), Offset: ({self.drag_offset_x}, {self.drag_offset_y})")
+            return True  # Capturar el evento para evitar conflictos
         elif event.button == 3:  # Right click
             return self.on_button_right_click(widget, event)
         return False
 
     def on_button_release_event(self, widget, event):
         """Handle button release on the main button"""
-        if event.button == 1:
+        if event.button == 1 and self.dragging:
+            # Liberar captura de eventos
+            widget.grab_remove()
+            Gdk.pointer_ungrab(event.time)
+            
             # Check if it was a drag or a click
-            if self.dragging:
-                drag_distance = ((event.x_root - self.drag_start_x) ** 2 +
-                               (event.y_root - self.drag_start_y) ** 2) ** 0.5
+            drag_distance = ((event.x_root - self.drag_start_x) ** 2 +
+                           (event.y_root - self.drag_start_y) ** 2) ** 0.5
 
-                if drag_distance < 5:  # Less than 5 pixels = click, not drag
-                    # It's a click, trigger the button action
-                    self.dragging = False
-                    return False  # Let the clicked signal handle it
-                else:
-                    # It was a drag
-                    self.dragging = False
-                    # Save new position
-                    x, y = self.window.get_position()
-                    self.config['position_x'] = x
-                    self.config['position_y'] = y
-                    self.save_config()
-                    return True  # Prevent clicked signal
+            if drag_distance < 5:  # Less than 5 pixels = click, not drag
+                # It's a click, trigger the button action
+                self.dragging = False
+                self.logger.debug("Clic detectado (no arrastre)")
+                return False  # Let the clicked signal handle it
+            else:
+                # It was a drag
+                self.dragging = False
+                # Save new position
+                x, y = self.window.get_position()
+                self.config['position_x'] = x
+                self.config['position_y'] = y
+                self.save_config()
+                self.logger.debug(f"Fin arrastre - Nueva posición: ({x}, {y})")
+                return True  # Prevent clicked signal
         return False
 
     def on_button_motion(self, widget, event):
         """Handle mouse motion on the button for dragging"""
         if self.dragging:
-            x = int(event.x_root - self.drag_offset_x)
-            y = int(event.y_root - self.drag_offset_y)
+            try:
+                x = int(event.x_root - self.drag_offset_x)
+                y = int(event.y_root - self.drag_offset_y)
 
-            # Mover ventana principal
-            self.window.move(x, y)
+                # Validar coordenadas para evitar errores en máquinas virtuales
+                screen = Gdk.Screen.get_default()
+                screen_width = screen.get_width()
+                screen_height = screen.get_height()
+                
+                # Limitar coordenadas dentro de la pantalla
+                x = max(0, min(x, screen_width - self.button_size))
+                y = max(0, min(y, screen_height - self.button_size))
 
-            # Actualizar posiciones de favoritos de forma sincronizada
-            self._update_favorites_during_drag(x, y)
+                # Mover ventana principal
+                self.window.move(x, y)
 
-            return True
+                # Actualizar posiciones de favoritos de forma sincronizada
+                self._update_favorites_during_drag(x, y)
+                
+                return True
+            except Exception as e:
+                self.logger.error(f"Error en arrastre: {e}")
+                self.dragging = False
+                widget.grab_remove()
+                Gdk.pointer_ungrab(Gdk.CURRENT_TIME)
         return False
 
     def _update_favorites_during_drag(self, main_x, main_y):
@@ -1324,33 +1352,54 @@ class FloatingButtonApp:
         self.favorites_window.move(container_x, container_y)
 
     def on_button_press(self, widget, event):
-        """Handle button press for dragging on window"""
-        if event.button == 1:  # Left click
+        """Handle button press for dragging on window - solo como backup"""
+        # Este manejador solo se activa si el del botón falla
+        # Para evitar conflictos, solo procesar si no estamos ya arrastrando
+        if event.button == 1 and not self.dragging:
             self.dragging = True
             x, y = self.window.get_position()
             self.drag_offset_x = event.x_root - x
             self.drag_offset_y = event.y_root - y
+            self.logger.debug("Arrastre iniciado desde ventana (backup)")
+            return True  # Capturar evento para evitar propagación
 
     def on_button_release(self, widget, event):
-        """Handle button release on window"""
-        if event.button == 1:
+        """Handle button release on window - solo como backup"""
+        if event.button == 1 and self.dragging:
             self.dragging = False
             # Save new position
             x, y = self.window.get_position()
             self.config['position_x'] = x
             self.config['position_y'] = y
             self.save_config()
+            self.logger.debug("Arrastre finalizado desde ventana (backup)")
+            return True  # Capturar evento para evitar propagación
 
     def on_motion(self, widget, event):
-        """Handle mouse motion for dragging on window"""
+        """Handle mouse motion for dragging on window - solo como backup"""
         if self.dragging:
-            x = int(event.x_root - self.drag_offset_x)
-            y = int(event.y_root - self.drag_offset_y)
-            self.window.move(x, y)
-            # Marcar actividad para z-order check
-            self.recent_activity = True
-            # Actualizar posiciones de favoritos de forma sincronizada
-            self._update_favorites_during_drag(x, y)
+            try:
+                x = int(event.x_root - self.drag_offset_x)
+                y = int(event.y_root - self.drag_offset_y)
+
+                # Validar coordenadas para evitar errores en máquinas virtuales
+                screen = Gdk.Screen.get_default()
+                screen_width = screen.get_width()
+                screen_height = screen.get_height()
+                
+                # Limitar coordenadas dentro de la pantalla
+                x = max(0, min(x, screen_width - self.button_size))
+                y = max(0, min(y, screen_height - self.button_size))
+
+                self.window.move(x, y)
+                # Marcar actividad para z-order check
+                self.recent_activity = True
+                # Actualizar posiciones de favoritos de forma sincronizada
+                self._update_favorites_during_drag(x, y)
+                return True  # Capturar evento para evitar propagación
+            except Exception as e:
+                self.logger.error(f"Error en arrastre desde ventana: {e}")
+                self.dragging = False
 
 
 
